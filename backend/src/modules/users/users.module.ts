@@ -1,0 +1,14 @@
+import { Module } from '@nestjs/common';
+
+import { LoggerModule } from '../../infrastructure/logging/logger.module';
+import { UsersController } from './users.controller';
+import { UsersRepository } from './users.repository';
+import { UsersService } from './users.service';
+
+@Module({
+  imports: [LoggerModule],
+  controllers: [UsersController],
+  providers: [UsersService, UsersRepository],
+  exports: [UsersService],
+})
+export class UsersModule {}

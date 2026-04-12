@@ -1,0 +1,4 @@
+Single-database Alembic environment for the İsüChat backend.
+
+- Runtime config is loaded from `DATABASE_URL` when present.
+- Migration files live under `backend/migrations/versions`.
