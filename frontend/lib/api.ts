@@ -2,6 +2,16 @@ import { getAccessToken } from "./auth";
 
 const API_BASE_URL = "http://localhost:3002/api";
 
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 type LoginResponse = {
   accessToken: string;
   refreshToken: string;
@@ -32,9 +42,24 @@ export type ChatMessage = {
   content: string | null;
   createdAt?: string;
   senderId?: string;
+  senderName?: string | null;
   sender?: {
+    id?: string;
     fullName?: string | null;
     username?: string | null;
+    name?: string | null;
+  };
+  user?: {
+    id?: string;
+    fullName?: string | null;
+    username?: string | null;
+    name?: string | null;
+  };
+  author?: {
+    id?: string;
+    fullName?: string | null;
+    username?: string | null;
+    name?: string | null;
   };
 };
 
@@ -169,7 +194,7 @@ async function request<T>(
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `HTTP_${res.status}`);
+    throw new ApiError(res.status, text || `HTTP_${res.status}`);
   }
 
   if (res.status === 204) {

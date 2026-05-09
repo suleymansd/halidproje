@@ -6,6 +6,8 @@ node_modules/
 dist/
 build/
 coverage/
+.next/
+out/
 
 backend/.env
 backend/.env.*
@@ -13,6 +15,10 @@ backend/.env.*
 backend/node_modules/
 backend/dist/
 backend/coverage/
+
+frontend/.next/
+frontend/out/
+frontend/coverage/
 
 __pycache__/
 *.pyc

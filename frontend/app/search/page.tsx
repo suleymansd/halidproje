@@ -232,17 +232,18 @@ export default function SearchPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto max-w-6xl px-4 py-4">
-        <header className="mb-4 flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900 px-4 py-3">
+    <main className="search-scene relative min-h-screen overflow-hidden text-slate-100">
+      <div className="search-pattern pointer-events-none absolute inset-0" />
+      <div className="relative mx-auto max-w-6xl px-4 py-4">
+        <header className="mb-4 flex items-center justify-between rounded-2xl border border-[rgba(127,183,220,0.16)] bg-[rgba(16,33,49,0.9)] px-4 py-3 shadow-[0_20px_80px_rgba(8,19,29,0.35)] backdrop-blur">
           <div className="flex items-center gap-3 text-sm">
-            <Link href="/chat" className="rounded-md px-2 py-1 hover:bg-slate-800">
+            <Link href="/chat" className="rounded-full px-3 py-1.5 hover:bg-[rgba(56,128,176,0.12)]">
               Chat
             </Link>
-            <Link href="/materials" className="rounded-md px-2 py-1 hover:bg-slate-800">
+            <Link href="/materials" className="rounded-full px-3 py-1.5 hover:bg-[rgba(56,128,176,0.12)]">
               Materials
             </Link>
-            <Link href="/search" className="rounded-md bg-slate-800 px-2 py-1 text-cyan-300">
+            <Link href="/search" className="rounded-full bg-[#3880b0] px-3 py-1.5 font-medium text-[#08131d]">
               Search
             </Link>
           </div>
@@ -250,26 +251,26 @@ export default function SearchPage() {
             <NotificationBell />
             <button
               onClick={logout}
-              className="rounded-md border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800"
+              className="rounded-full border border-[rgba(127,183,220,0.2)] px-3 py-1.5 text-sm hover:bg-[rgba(56,128,176,0.12)]"
             >
               Logout
             </button>
           </div>
         </header>
 
-        <section className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+        <section className="rounded-2xl border border-[rgba(127,183,220,0.16)] bg-[rgba(16,33,49,0.88)] p-4 shadow-[0_20px_80px_rgba(8,19,29,0.28)] backdrop-blur">
           <form onSubmit={onSearch} className="mb-4 flex flex-col gap-3">
             <div className="flex gap-2">
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search materials, users, groups..."
-                className="flex-1 rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none ring-cyan-400 focus:ring-2"
+                className="flex-1 rounded-2xl border border-[rgba(127,183,220,0.16)] bg-[rgba(8,19,29,0.82)] px-4 py-3 text-sm outline-none ring-[#3880b0] focus:ring-2"
               />
               <button
                 type="submit"
                 disabled={loading}
-                className="rounded-md bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-cyan-400 disabled:opacity-70"
+                className="rounded-2xl bg-[#3880b0] px-5 py-3 text-sm font-medium text-[#08131d] hover:bg-[#4e93c1] disabled:opacity-70"
               >
                 {loading ? "Searching..." : "Search"}
               </button>
@@ -280,10 +281,10 @@ export default function SearchPage() {
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
-                  className={`rounded-md px-3 py-1 text-xs ${
+                  className={`rounded-full px-3 py-1.5 text-xs ${
                     activeTab === tab.key
-                      ? "bg-cyan-500 font-semibold text-slate-950"
-                      : "border border-slate-700 text-slate-300 hover:bg-slate-800"
+                      ? "bg-[#3880b0] font-semibold text-[#08131d]"
+                      : "border border-[rgba(127,183,220,0.18)] text-slate-300 hover:bg-[rgba(56,128,176,0.12)]"
                   }`}
                 >
                   {tab.label}
@@ -293,17 +294,34 @@ export default function SearchPage() {
           </form>
 
           {error ? (
-            <p className="mb-3 rounded-md border border-rose-800 bg-rose-950/30 px-3 py-2 text-sm text-rose-300">
+            <p className="mb-3 rounded-2xl border border-rose-800 bg-rose-950/30 px-3 py-3 text-sm text-rose-300">
               {error}
             </p>
           ) : null}
 
           {!loading && submitted && results.length === 0 ? (
-            <p className="text-sm text-slate-400">No results found.</p>
+            <div className="rounded-2xl border border-dashed border-[rgba(127,183,220,0.18)] bg-[rgba(8,19,29,0.42)] px-4 py-10 text-center">
+              <p className="text-sm font-medium text-slate-200">No results found.</p>
+              <p className="mt-2 text-sm text-slate-400">Try another keyword or switch the active tab.</p>
+            </div>
           ) : null}
 
           {loading ? (
-            <p className="text-sm text-slate-400">Loading results...</p>
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div
+                  key={`search-skeleton-${index}`}
+                  className="animate-pulse rounded-2xl border border-[rgba(127,183,220,0.12)] bg-[rgba(8,19,29,0.72)] p-4"
+                >
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="h-5 w-16 rounded-full bg-[rgba(56,128,176,0.16)]" />
+                    <div className="h-3 w-28 rounded bg-slate-800" />
+                  </div>
+                  <div className="h-4 w-1/2 rounded bg-slate-800" />
+                  <div className="mt-3 h-3 w-full rounded bg-slate-800" />
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="space-y-3">
               {results.map((result) => {
@@ -334,7 +352,7 @@ export default function SearchPage() {
                     <Link
                       key={`${result.entityType}-${result.entityId}`}
                       href={materialHref ?? userHref ?? "#"}
-                      className="block rounded-lg border border-slate-800 bg-slate-950 p-3 hover:border-slate-700"
+                      className="block rounded-2xl border border-[rgba(127,183,220,0.14)] bg-[rgba(8,19,29,0.76)] p-4 hover:border-[rgba(127,183,220,0.3)]"
                     >
                       {content}
                     </Link>
@@ -344,7 +362,7 @@ export default function SearchPage() {
                 return (
                   <div
                     key={`${result.entityType}-${result.entityId}`}
-                    className="rounded-lg border border-slate-800 bg-slate-950 p-3"
+                    className="rounded-2xl border border-[rgba(127,183,220,0.14)] bg-[rgba(8,19,29,0.76)] p-4"
                   >
                     {content}
                   </div>

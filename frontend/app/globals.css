@@ -2,8 +2,71 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --isu-primary: #3880b0;
+  --isu-primary-rgb: 56, 128, 176;
+  --isu-primary-deep: #1d4f72;
+  --isu-primary-soft: #7fb7dc;
+  --isu-ink: #08131d;
+  --isu-surface: #102131;
+  --isu-surface-2: #162c40;
+  --isu-line: rgba(127, 183, 220, 0.16);
+}
+
 html,
 body {
-  background: #0b1020;
+  background:
+    radial-gradient(circle at top, rgba(var(--isu-primary-rgb), 0.24), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(var(--isu-primary-rgb), 0.12), transparent 22%),
+    linear-gradient(180deg, #09131d 0%, #0d1925 52%, #08131d 100%);
   color: #e5e7eb;
+}
+
+body {
+  min-height: 100vh;
+}
+
+.chat-scene {
+  background:
+    radial-gradient(circle at top right, rgba(var(--isu-primary-rgb), 0.19), transparent 24%),
+    radial-gradient(circle at bottom left, rgba(var(--isu-primary-rgb), 0.08), transparent 26%),
+    linear-gradient(180deg, rgba(8, 19, 29, 0.96), rgba(11, 24, 37, 0.98));
+}
+
+.chat-pattern {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='140' viewBox='0 0 180 140'%3E%3Cg fill='none' stroke='rgba(127,183,220,0.13)' stroke-width='2'%3E%3Cpath d='M18 26h42c8 0 14 6 14 14v16c0 8-6 14-14 14H45l-18 14 6-14H18c-8 0-14-6-14-14V40c0-8 6-14 14-14Z'/%3E%3Cpath d='M118 66h32c8 0 14 6 14 14v12c0 8-6 14-14 14h-10l-12 10 4-10h-14c-8 0-14-6-14-14V80c0-8 6-14 14-14Z'/%3E%3Cpath d='M98 14h44c8 0 14 6 14 14v16c0 8-6 14-14 14h-17l-15 11 5-11H98c-8 0-14-6-14-14V28c0-8 6-14 14-14Z'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 180px 140px;
+  background-repeat: repeat;
+  opacity: 0.55;
+}
+
+.materials-scene {
+  background:
+    radial-gradient(circle at top left, rgba(var(--isu-primary-rgb), 0.22), transparent 24%),
+    radial-gradient(circle at right, rgba(var(--isu-primary-rgb), 0.1), transparent 28%),
+    linear-gradient(180deg, rgba(9, 19, 29, 0.98), rgba(14, 28, 42, 0.98));
+}
+
+.materials-pattern {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='180' viewBox='0 0 220 180'%3E%3Cg fill='none' stroke='rgba(127,183,220,0.12)' stroke-width='2'%3E%3Cpath d='M24 30h40c8 0 14 6 14 14v78c0 8-6 14-14 14H24c-8 0-14-6-14-14V44c0-8 6-14 14-14Z'/%3E%3Cpath d='M38 30v106'/%3E%3Cpath d='M108 38l18-18 16 16-58 58-20 4 4-20 40-40Z'/%3E%3Cpath d='M150 86h46c8 0 14 6 14 14v42c0 8-6 14-14 14h-46c-8 0-14-6-14-14v-42c0-8 6-14 14-14Z'/%3E%3Cpath d='M162 104h22'/%3E%3Cpath d='M162 118h30'/%3E%3Cpath d='M162 132h18'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 220px 180px;
+  background-repeat: repeat;
+  opacity: 0.5;
+}
+
+.search-scene {
+  background:
+    radial-gradient(circle at top center, rgba(var(--isu-primary-rgb), 0.24), transparent 24%),
+    radial-gradient(circle at bottom right, rgba(var(--isu-primary-rgb), 0.11), transparent 24%),
+    linear-gradient(180deg, rgba(8, 19, 29, 0.98), rgba(14, 30, 44, 0.98));
+}
+
+.search-pattern {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='180' viewBox='0 0 240 180'%3E%3Cg fill='none' stroke='rgba(127,183,220,0.12)' stroke-width='2'%3E%3Ccircle cx='58' cy='62' r='22'/%3E%3Cpath d='M74 78l20 20'/%3E%3Cpath d='M132 46h70'/%3E%3Cpath d='M132 64h54'/%3E%3Cpath d='M132 82h42'/%3E%3Cpath d='M28 126h154c8 0 14 6 14 14v8c0 8-6 14-14 14H28c-8 0-14-6-14-14v-8c0-8 6-14 14-14Z'/%3E%3Cpath d='M34 144h34'/%3E%3Cpath d='M82 144h28'/%3E%3Cpath d='M122 144h46'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 240px 180px;
+  background-repeat: repeat;
+  opacity: 0.48;
 }

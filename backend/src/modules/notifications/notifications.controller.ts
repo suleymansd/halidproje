@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 
 import { CurrentUserDecorator } from '../../shared/decorators/current-user.decorator';
-import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ListNotificationsDto } from './dto/list-notifications.dto';
 import { MarkAllNotificationsReadDto } from './dto/mark-all-notifications-read.dto';
 import { MarkNotificationReadDto } from './dto/mark-notification-read.dto';

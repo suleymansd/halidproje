@@ -183,20 +183,21 @@ export default function MaterialsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto max-w-7xl px-4 py-4">
-        <header className="mb-4 flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900 px-4 py-3">
+    <main className="materials-scene relative min-h-screen overflow-hidden text-slate-100">
+      <div className="materials-pattern pointer-events-none absolute inset-0" />
+      <div className="relative mx-auto max-w-7xl px-4 py-4">
+        <header className="mb-4 flex items-center justify-between rounded-2xl border border-[rgba(127,183,220,0.16)] bg-[rgba(16,33,49,0.9)] px-4 py-3 shadow-[0_20px_80px_rgba(8,19,29,0.35)] backdrop-blur">
           <div className="flex items-center gap-3 text-sm">
-            <Link href="/chat" className="rounded-md px-2 py-1 hover:bg-slate-800">
+            <Link href="/chat" className="rounded-full px-3 py-1.5 hover:bg-[rgba(56,128,176,0.12)]">
               Chat
             </Link>
             <Link
               href="/materials"
-              className="rounded-md bg-slate-800 px-2 py-1 text-cyan-300"
+              className="rounded-full bg-[#3880b0] px-3 py-1.5 font-medium text-[#08131d]"
             >
               Materials
             </Link>
-            <Link href="/search" className="rounded-md px-2 py-1 hover:bg-slate-800">
+            <Link href="/search" className="rounded-full px-3 py-1.5 hover:bg-[rgba(56,128,176,0.12)]">
               Search
             </Link>
           </div>
@@ -204,7 +205,7 @@ export default function MaterialsPage() {
             <NotificationBell />
             <button
               onClick={logout}
-              className="rounded-md border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800"
+              className="rounded-full border border-[rgba(127,183,220,0.2)] px-3 py-1.5 text-sm hover:bg-[rgba(56,128,176,0.12)]"
             >
               Logout
             </button>
@@ -215,7 +216,7 @@ export default function MaterialsPage() {
           <aside className="space-y-4">
             <form
               onSubmit={onApplyFilters}
-              className="rounded-xl border border-slate-800 bg-slate-900 p-4"
+              className="rounded-2xl border border-[rgba(127,183,220,0.16)] bg-[rgba(16,33,49,0.88)] p-4 backdrop-blur"
             >
               <h2 className="mb-3 text-sm font-semibold">Filters</h2>
               <label className="mb-2 block">
@@ -223,7 +224,7 @@ export default function MaterialsPage() {
                 <input
                   value={departmentFilter}
                   onChange={(e) => setDepartmentFilter(e.target.value)}
-                  className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-2 text-sm outline-none ring-cyan-400 focus:ring-2"
+                  className="w-full rounded-xl border border-[rgba(127,183,220,0.16)] bg-[rgba(8,19,29,0.82)] px-3 py-2 text-sm outline-none ring-[#3880b0] focus:ring-2"
                 />
               </label>
               <label className="mb-2 block">
@@ -231,7 +232,7 @@ export default function MaterialsPage() {
                 <input
                   value={courseFilter}
                   onChange={(e) => setCourseFilter(e.target.value)}
-                  className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-2 text-sm outline-none ring-cyan-400 focus:ring-2"
+                  className="w-full rounded-xl border border-[rgba(127,183,220,0.16)] bg-[rgba(8,19,29,0.82)] px-3 py-2 text-sm outline-none ring-[#3880b0] focus:ring-2"
                 />
               </label>
               <label className="mb-2 block">
@@ -239,7 +240,7 @@ export default function MaterialsPage() {
                 <input
                   value={tagsFilter}
                   onChange={(e) => setTagsFilter(e.target.value)}
-                  className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-2 text-sm outline-none ring-cyan-400 focus:ring-2"
+                  className="w-full rounded-xl border border-[rgba(127,183,220,0.16)] bg-[rgba(8,19,29,0.82)] px-3 py-2 text-sm outline-none ring-[#3880b0] focus:ring-2"
                 />
               </label>
               <label className="mb-3 block">
@@ -247,7 +248,7 @@ export default function MaterialsPage() {
                 <select
                   value={sort}
                   onChange={(e) => setSort(e.target.value as "newest" | "most_upvoted")}
-                  className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-2 text-sm outline-none ring-cyan-400 focus:ring-2"
+                  className="w-full rounded-xl border border-[rgba(127,183,220,0.16)] bg-[rgba(8,19,29,0.82)] px-3 py-2 text-sm outline-none ring-[#3880b0] focus:ring-2"
                 >
                   <option value="newest">Newest</option>
                   <option value="most_upvoted">Most upvoted</option>
@@ -255,7 +256,7 @@ export default function MaterialsPage() {
               </label>
               <button
                 type="submit"
-                className="w-full rounded-md bg-cyan-500 px-3 py-2 text-sm font-medium text-slate-950 hover:bg-cyan-400"
+                className="w-full rounded-xl bg-[#3880b0] px-3 py-2 text-sm font-medium text-[#08131d] hover:bg-[#4e93c1]"
               >
                 Apply Filters
               </button>
@@ -263,7 +264,7 @@ export default function MaterialsPage() {
 
             <form
               onSubmit={onCreateMaterial}
-              className="rounded-xl border border-slate-800 bg-slate-900 p-4"
+              className="rounded-2xl border border-[rgba(127,183,220,0.16)] bg-[rgba(16,33,49,0.88)] p-4 backdrop-blur"
             >
               <h2 className="mb-3 text-sm font-semibold">Create Material</h2>
               <label className="mb-2 block">
@@ -272,7 +273,7 @@ export default function MaterialsPage() {
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-2 text-sm outline-none ring-cyan-400 focus:ring-2"
+                  className="w-full rounded-xl border border-[rgba(127,183,220,0.16)] bg-[rgba(8,19,29,0.82)] px-3 py-2 text-sm outline-none ring-[#3880b0] focus:ring-2"
                 />
               </label>
               <label className="mb-2 block">
@@ -281,7 +282,7 @@ export default function MaterialsPage() {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
-                  className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-2 text-sm outline-none ring-cyan-400 focus:ring-2"
+                  className="w-full rounded-xl border border-[rgba(127,183,220,0.16)] bg-[rgba(8,19,29,0.82)] px-3 py-2 text-sm outline-none ring-[#3880b0] focus:ring-2"
                 />
               </label>
               <label className="mb-2 block">
@@ -289,7 +290,7 @@ export default function MaterialsPage() {
                 <input
                   value={departmentId}
                   onChange={(e) => setDepartmentId(e.target.value)}
-                  className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-2 text-sm outline-none ring-cyan-400 focus:ring-2"
+                  className="w-full rounded-xl border border-[rgba(127,183,220,0.16)] bg-[rgba(8,19,29,0.82)] px-3 py-2 text-sm outline-none ring-[#3880b0] focus:ring-2"
                 />
               </label>
               <label className="mb-2 block">
@@ -297,7 +298,7 @@ export default function MaterialsPage() {
                 <input
                   value={courseId}
                   onChange={(e) => setCourseId(e.target.value)}
-                  className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-2 text-sm outline-none ring-cyan-400 focus:ring-2"
+                  className="w-full rounded-xl border border-[rgba(127,183,220,0.16)] bg-[rgba(8,19,29,0.82)] px-3 py-2 text-sm outline-none ring-[#3880b0] focus:ring-2"
                 />
               </label>
               <label className="mb-3 block">
@@ -305,7 +306,7 @@ export default function MaterialsPage() {
                 <input
                   value={tags}
                   onChange={(e) => setTags(e.target.value)}
-                  className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-2 text-sm outline-none ring-cyan-400 focus:ring-2"
+                  className="w-full rounded-xl border border-[rgba(127,183,220,0.16)] bg-[rgba(8,19,29,0.82)] px-3 py-2 text-sm outline-none ring-[#3880b0] focus:ring-2"
                 />
               </label>
               <label className="mb-2 block">
@@ -315,7 +316,7 @@ export default function MaterialsPage() {
                 <input
                   value={materialType}
                   onChange={(e) => setMaterialType(e.target.value)}
-                  className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-2 text-sm outline-none ring-cyan-400 focus:ring-2"
+                  className="w-full rounded-xl border border-[rgba(127,183,220,0.16)] bg-[rgba(8,19,29,0.82)] px-3 py-2 text-sm outline-none ring-[#3880b0] focus:ring-2"
                 />
               </label>
               <label className="mb-2 block">
@@ -326,7 +327,7 @@ export default function MaterialsPage() {
                   value={storageUrl}
                   onChange={(e) => setStorageUrl(e.target.value)}
                   placeholder="https://example.com/dev-placeholder.pdf"
-                  className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-2 text-sm outline-none ring-cyan-400 focus:ring-2"
+                  className="w-full rounded-xl border border-[rgba(127,183,220,0.16)] bg-[rgba(8,19,29,0.82)] px-3 py-2 text-sm outline-none ring-[#3880b0] focus:ring-2"
                 />
               </label>
               <label className="mb-2 block">
@@ -337,7 +338,7 @@ export default function MaterialsPage() {
                   value={filename}
                   onChange={(e) => setFilename(e.target.value)}
                   placeholder="dev-placeholder.pdf"
-                  className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-2 text-sm outline-none ring-cyan-400 focus:ring-2"
+                  className="w-full rounded-xl border border-[rgba(127,183,220,0.16)] bg-[rgba(8,19,29,0.82)] px-3 py-2 text-sm outline-none ring-[#3880b0] focus:ring-2"
                 />
               </label>
               <label className="mb-2 block">
@@ -348,7 +349,7 @@ export default function MaterialsPage() {
                   value={fileType}
                   onChange={(e) => setFileType(e.target.value)}
                   placeholder="application/pdf"
-                  className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-2 text-sm outline-none ring-cyan-400 focus:ring-2"
+                  className="w-full rounded-xl border border-[rgba(127,183,220,0.16)] bg-[rgba(8,19,29,0.82)] px-3 py-2 text-sm outline-none ring-[#3880b0] focus:ring-2"
                 />
               </label>
               <label className="mb-3 block">
@@ -359,20 +360,20 @@ export default function MaterialsPage() {
                   value={fileSize}
                   onChange={(e) => setFileSize(e.target.value)}
                   placeholder="12345"
-                  className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-2 text-sm outline-none ring-cyan-400 focus:ring-2"
+                  className="w-full rounded-xl border border-[rgba(127,183,220,0.16)] bg-[rgba(8,19,29,0.82)] px-3 py-2 text-sm outline-none ring-[#3880b0] focus:ring-2"
                 />
               </label>
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full rounded-md bg-cyan-500 px-3 py-2 text-sm font-medium text-slate-950 hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-70"
+                className="w-full rounded-xl bg-[#3880b0] px-3 py-2 text-sm font-medium text-[#08131d] hover:bg-[#4e93c1] disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {submitting ? "Creating..." : "Create"}
               </button>
             </form>
           </aside>
 
-          <section className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <section className="rounded-2xl border border-[rgba(127,183,220,0.16)] bg-[rgba(16,33,49,0.88)] p-4 shadow-[0_20px_80px_rgba(8,19,29,0.28)] backdrop-blur">
             <h2 className="mb-3 text-lg font-semibold">Academic Materials</h2>
             {error ? <p className="mb-3 text-sm text-rose-400">{error}</p> : null}
             {success ? <p className="mb-3 text-sm text-emerald-400">{success}</p> : null}
@@ -387,7 +388,7 @@ export default function MaterialsPage() {
                   <Link
                     key={material.id}
                     href={`/materials/${material.id}`}
-                    className="block rounded-lg border border-slate-800 bg-slate-950 p-3 hover:border-slate-700"
+                    className="block rounded-2xl border border-[rgba(127,183,220,0.14)] bg-[rgba(8,19,29,0.76)] p-3 hover:border-[rgba(127,183,220,0.3)]"
                   >
                     <div className="mb-1 flex items-start justify-between gap-2">
                       <h3 className="text-sm font-semibold">{material.title}</h3>
@@ -409,7 +410,7 @@ export default function MaterialsPage() {
                         {material.tags.map((tag, index) => (
                           <span
                             key={`${material.id}-tag-${tag.name}-${index}`}
-                            className="rounded bg-slate-800 px-2 py-0.5 text-[11px] text-slate-300"
+                            className="rounded-full bg-[rgba(56,128,176,0.14)] px-2 py-0.5 text-[11px] text-[#b4d8ee]"
                           >
                             {tag.name}
                           </span>

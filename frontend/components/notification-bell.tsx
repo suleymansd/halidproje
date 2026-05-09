@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import {
+  ApiError,
   getNotifications,
   getUnreadNotificationCount,
   markAllNotificationsRead,
@@ -39,6 +40,11 @@ export function NotificationBell() {
       auth: {
         token: `Bearer ${token}`
       }
+    });
+
+    socket.on("connect_error", () => {
+      clearAccessToken();
+      router.replace("/");
     });
 
     socket.on("notification.created", (payload: NotificationCreatedPayload) => {
@@ -83,12 +89,10 @@ export function NotificationBell() {
       setUnreadCount(unread.count ?? 0);
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
-      if (
-        message.includes("NO_TOKEN") ||
-        message.includes("401") ||
-        message.includes("Unauthorized")
-      ) {
+      const status = err instanceof ApiError ? err.status : undefined;
+      if (status === 401 || message.includes("NO_TOKEN") || message.includes("Unauthorized")) {
         clearAccessToken();
+        router.replace("/");
       }
     }
   }
