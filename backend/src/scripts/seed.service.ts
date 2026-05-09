@@ -17,6 +17,12 @@ interface SeedUserDefinition {
   departmentCode: string;
 }
 
+interface SeedCourse {
+  code: string;
+  name: string;
+  description: string;
+}
+
 interface RoleRow {
   id: string;
   name: string;
@@ -32,6 +38,14 @@ interface DepartmentRow {
   id: string;
   school_id: string;
   code: string | null;
+  name: string;
+}
+
+interface CourseRow {
+  id: string;
+  school_id: string;
+  department_id: string | null;
+  code: string;
   name: string;
 }
 
@@ -132,6 +146,35 @@ export class SeedService {
     },
   ];
 
+  private readonly coursesByDepartmentCode: Record<string, SeedCourse[]> = {
+    SE: [
+      {
+        code: 'SE101',
+        name: 'Intro to Software',
+        description: 'Introduction to software engineering fundamentals.',
+      },
+      {
+        code: 'SE201',
+        name: 'Data Structures',
+        description: 'Core data structures and algorithmic problem solving.',
+      },
+    ],
+    CE: [
+      {
+        code: 'CE101',
+        name: 'Computer Systems',
+        description: 'Computer architecture, systems, and low-level concepts.',
+      },
+    ],
+    BIO: [
+      {
+        code: 'BIO101',
+        name: 'Intro to Biochemistry',
+        description: 'Foundational biochemistry concepts and molecular biology.',
+      },
+    ],
+  };
+
   constructor(private readonly pool: Pool) {}
 
   async seed(): Promise<void> {
@@ -140,8 +183,14 @@ export class SeedService {
 
     const school = await this.ensureSchool();
     const departments = await this.ensureDepartments(school.id);
-    const users = await this.ensureUsers(school.id, departments);
-    const generalRoom = await this.ensureGeneralRoom(school.id, users[0]?.id ?? null);
+    await this.ensureCourses(school.id, departments);
+    await this.ensureUsers(school.id, departments);
+
+    const users = await this.findSchoolUsers(school.id);
+    const generalRoom = await this.ensureGeneralRoom(
+      school.id,
+      this.findRoomOwner(users)?.id ?? null,
+    );
 
     await this.ensureGeneralMemberships(generalRoom.id, school.id, users);
     await this.ensureDepartmentRoomsAndMemberships(school.id, departments, users);
@@ -315,6 +364,71 @@ export class SeedService {
     return users;
   }
 
+  private async ensureCourses(
+    schoolId: string,
+    departments: Map<string, DepartmentRow>,
+  ): Promise<Map<string, CourseRow>> {
+    const courses = new Map<string, CourseRow>();
+
+    for (const [departmentCode, seedCourses] of Object.entries(
+      this.coursesByDepartmentCode,
+    )) {
+      const department = departments.get(departmentCode);
+      if (!department) {
+        continue;
+      }
+
+      for (const seedCourse of seedCourses) {
+        const result = await this.pool.query<CourseRow>(
+          `
+            INSERT INTO courses (
+              school_id,
+              department_id,
+              code,
+              name,
+              description,
+              is_active
+            )
+            VALUES ($1, $2, $3, $4, $5, true)
+            ON CONFLICT (school_id, code)
+            DO UPDATE SET
+              department_id = EXCLUDED.department_id,
+              name = EXCLUDED.name,
+              description = EXCLUDED.description,
+              is_active = true,
+              updated_at = now()
+            RETURNING id, school_id, department_id, code, name
+          `,
+          [
+            schoolId,
+            department.id,
+            seedCourse.code,
+            seedCourse.name,
+            seedCourse.description,
+          ],
+        );
+
+        courses.set(seedCourse.code, result.rows[0]);
+      }
+    }
+
+    return courses;
+  }
+
+  private async findSchoolUsers(schoolId: string): Promise<UserRow[]> {
+    const result = await this.pool.query<UserRow>(
+      `
+        SELECT id, email, school_id, department_id, role
+        FROM users
+        WHERE school_id = $1
+        ORDER BY created_at ASC, id ASC
+      `,
+      [schoolId],
+    );
+
+    return result.rows;
+  }
+
   private async ensureGeneralRoom(
     schoolId: string,
     creatorUserId: string | null,
@@ -458,6 +572,15 @@ export class SeedService {
     );
 
     return created.rows[0];
+  }
+
+  private findRoomOwner(users: UserRow[]): UserRow | null {
+    return (
+      users.find((user) => user.role === 'school_admin') ??
+      users.find((user) => user.role === 'moderator') ??
+      users[0] ??
+      null
+    );
   }
 
   private async ensureSampleGroupAndRoom(

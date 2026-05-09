@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
 import {
+  IsNotEmpty,
   IsIn,
   IsInt,
   IsOptional,
@@ -10,7 +11,21 @@ import {
 } from 'class-validator';
 
 export class SearchQueryDto {
+  @IsOptional()
   @IsString()
+  q?: string;
+
+  @Transform(({ value, obj }) => {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+    if (typeof obj?.q === 'string' && obj.q.trim().length > 0) {
+      return obj.q.trim();
+    }
+    return '';
+  })
+  @IsString()
+  @IsNotEmpty()
   query!: string;
 
   @IsOptional()

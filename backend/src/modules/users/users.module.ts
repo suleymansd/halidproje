@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 
 import { LoggerModule } from '../../infrastructure/logging/logger.module';
+import { MessagingModule } from '../messaging/messaging.module';
 import { UsersController } from './users.controller';
 import { UsersRepository } from './users.repository';
 import { UsersService } from './users.service';
 
 @Module({
-  imports: [LoggerModule],
+  imports: [LoggerModule, MessagingModule],
   controllers: [UsersController],
   providers: [UsersService, UsersRepository],
   exports: [UsersService],

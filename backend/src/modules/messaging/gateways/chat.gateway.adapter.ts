@@ -13,6 +13,15 @@ export class ChatGatewayAdapter {
     this.server?.to(roomKey).emit(eventName, payload);
   }
 
+  emitToRoomExcept(
+    roomKey: string,
+    excludedSocketId: string,
+    eventName: string,
+    payload: unknown,
+  ): void {
+    this.server?.to(roomKey).except(excludedSocketId).emit(eventName, payload);
+  }
+
   emitToSocket(socketId: string, eventName: string, payload: unknown): void {
     this.server?.to(socketId).emit(eventName, payload);
   }
@@ -25,5 +34,9 @@ export class ChatGatewayAdapter {
     for (const socketId of socketIds) {
       this.emitToSocket(socketId, eventName, payload);
     }
+  }
+
+  emitToAll(eventName: string, payload: unknown): void {
+    this.server?.emit(eventName, payload);
   }
 }

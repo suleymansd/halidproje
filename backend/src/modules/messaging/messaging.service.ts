@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 
 import { ChatEvents } from './constants/chat-events.constant';
@@ -19,6 +20,10 @@ import { ChatUserContext } from './interfaces/chat-user-context.interface';
 import { ChatAccessPolicy } from './policies/chat-access.policy';
 import { ChatRoomTypePolicy } from './policies/chat-room-type.policy';
 import { MessagingRepository } from './messaging.repository';
+import { ChatEventsPublisher } from './gateways/chat-events.publisher';
+import { RoomBroadcastService } from './gateways/room-broadcast.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationTypes } from '../notifications/constants/notification-types.constant';
 
 @Injectable()
 export class MessagingService {
@@ -26,14 +31,22 @@ export class MessagingService {
     private readonly messagingRepository: MessagingRepository,
     private readonly chatAccessPolicy: ChatAccessPolicy,
     private readonly chatRoomTypePolicy: ChatRoomTypePolicy,
+    private readonly chatEventsPublisher: ChatEventsPublisher,
+    private readonly roomBroadcastService: RoomBroadcastService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async listUserRooms(user: ChatUserContext, query: ListUserRoomsDto) {
-    return this.messagingRepository.findUserRooms(user.schoolId, user.userId, query);
+    const currentUser = this.normalizeUser(user);
+    return this.messagingRepository.findUserRooms(
+      currentUser.schoolId,
+      currentUser.userId,
+      query,
+    );
   }
 
   async getRoomById(user: ChatUserContext, roomId: string) {
-    const room = await this.getAccessibleRoom(user, roomId);
+    const room = await this.getAccessibleRoom(this.normalizeUser(user), roomId);
     return room;
   }
 
@@ -42,12 +55,13 @@ export class MessagingService {
     roomId: string,
     query: ListRoomMessagesDto,
   ) {
-    await this.getAccessibleRoom(user, roomId);
+    const currentUser = this.normalizeUser(user);
+    await this.getAccessibleRoom(currentUser, roomId);
     return this.messagingRepository.findRoomMessages(
-      user.schoolId,
+      currentUser.schoolId,
       roomId,
       query,
-      user.userId,
+      currentUser.userId,
     );
   }
 
@@ -55,12 +69,14 @@ export class MessagingService {
     user: ChatUserContext,
     dto: CreatePrivateRoomDto,
   ) {
-    if (dto.targetUserId === user.userId) {
+    const currentUser = this.normalizeUser(user);
+
+    if (dto.targetUserId === currentUser.userId) {
       throw new BadRequestException('Cannot create a private room with yourself');
     }
 
     const targetUser = await this.messagingRepository.findUserById(
-      user.schoolId,
+      currentUser.schoolId,
       dto.targetUserId,
     );
 
@@ -69,8 +85,8 @@ export class MessagingService {
     }
 
     const existingRoom = await this.messagingRepository.findPrivateRoomBetweenUsers(
-      user.schoolId,
-      user.userId,
+      currentUser.schoolId,
+      currentUser.userId,
       dto.targetUserId,
     );
 
@@ -79,10 +95,21 @@ export class MessagingService {
     }
 
     return this.messagingRepository.createPrivateRoom(
-      user.schoolId,
-      user.userId,
+      currentUser.schoolId,
+      currentUser.userId,
       dto.targetUserId,
     );
+  }
+
+  async startDirectMessage(
+    user: ChatUserContext,
+    dto: CreatePrivateRoomDto,
+  ): Promise<{ roomId: string; roomType: string }> {
+    const room = await this.createOrGetPrivateRoom(user, dto);
+    return {
+      roomId: String(room.id),
+      roomType: String(room.roomType ?? ChatRoomTypes.Private),
+    };
   }
 
   async sendMessage(
@@ -90,7 +117,9 @@ export class MessagingService {
     roomId: string,
     dto: CreateMessageDto,
   ) {
-    await this.ensureCanParticipate(user, roomId);
+    const currentUser = this.normalizeUser(user);
+    const room = await this.getAccessibleRoom(currentUser, roomId);
+    await this.ensureCanParticipate(currentUser, roomId);
 
     if (dto.attachmentIds?.length) {
       throw new BadRequestException('Attachment sending is not available yet');
@@ -98,9 +127,9 @@ export class MessagingService {
 
     if (dto.replyToMessageId) {
       const replyTarget = await this.messagingRepository.findMessageById(
-        user.schoolId,
+        currentUser.schoolId,
         dto.replyToMessageId,
-        user.userId,
+        currentUser.userId,
       );
 
       if (!replyTarget || replyTarget.roomId !== roomId) {
@@ -108,13 +137,27 @@ export class MessagingService {
       }
     }
 
-    const message = await this.messagingRepository.createMessage(user.schoolId, {
+    const message = await this.messagingRepository.createMessage(currentUser.schoolId, {
       roomId,
-      senderId: user.userId,
+      senderId: currentUser.userId,
       body: dto.content.trim(),
       replyToMessageId: dto.replyToMessageId,
       attachmentIds: dto.attachmentIds ?? [],
     });
+
+    this.roomBroadcastService.emitLocalToRoom(
+      roomId,
+      ChatEvents.MessageCreated,
+      message,
+    );
+    await this.chatEventsPublisher.publish(
+      ChatEvents.MessageCreated,
+      currentUser.schoolId,
+      message,
+      { roomId },
+    );
+
+    await this.notifyMessageRecipients(currentUser, room, message);
 
     return {
       event: ChatEvents.MessageCreated,
@@ -128,8 +171,9 @@ export class MessagingService {
     messageId: string,
     dto: EditMessageDto,
   ) {
-    const message = await this.getAccessibleMessage(user, messageId);
-    if (message.senderId !== user.userId) {
+    const currentUser = this.normalizeUser(user);
+    const message = await this.getAccessibleMessage(currentUser, messageId);
+    if (message.senderId !== currentUser.userId) {
       throw new ForbiddenException('Only the sender can edit this message');
     }
 
@@ -138,11 +182,11 @@ export class MessagingService {
     }
 
     const updated = await this.messagingRepository.updateMessage(
-      user.schoolId,
+      currentUser.schoolId,
       messageId,
       {
         body: dto.content.trim(),
-        editorId: user.userId,
+        editorId: currentUser.userId,
       },
     );
 
@@ -154,10 +198,11 @@ export class MessagingService {
   }
 
   async softDeleteMessage(user: ChatUserContext, messageId: string) {
-    const message = await this.getAccessibleMessage(user, messageId);
-    const canModerate = this.hasModerationPrivileges(user);
+    const currentUser = this.normalizeUser(user);
+    const message = await this.getAccessibleMessage(currentUser, messageId);
+    const canModerate = this.hasModerationPrivileges(currentUser);
 
-    if (message.senderId !== user.userId && !canModerate) {
+    if (message.senderId !== currentUser.userId && !canModerate) {
       throw new ForbiddenException('Message delete is not allowed');
     }
 
@@ -170,9 +215,9 @@ export class MessagingService {
     }
 
     const deleted = await this.messagingRepository.softDeleteMessage(
-      user.schoolId,
+      currentUser.schoolId,
       messageId,
-      user.userId,
+      currentUser.userId,
     );
 
     return {
@@ -187,16 +232,17 @@ export class MessagingService {
     messageId: string,
     dto: ReactMessageDto,
   ) {
-    const message = await this.getAccessibleMessage(user, messageId);
-    await this.ensureCanParticipate(user, message.roomId);
+    const currentUser = this.normalizeUser(user);
+    const message = await this.getAccessibleMessage(currentUser, messageId);
+    await this.ensureCanParticipate(currentUser, message.roomId);
 
     if (message.isDeleted) {
       throw new BadRequestException('Cannot react to a deleted message');
     }
 
-    const reaction = await this.messagingRepository.upsertReaction(user.schoolId, {
+    const reaction = await this.messagingRepository.upsertReaction(currentUser.schoolId, {
       messageId,
-      userId: user.userId,
+      userId: currentUser.userId,
       reaction: dto.reaction.trim(),
     });
 
@@ -212,12 +258,13 @@ export class MessagingService {
     messageId: string,
     dto: ReactMessageDto,
   ) {
-    const message = await this.getAccessibleMessage(user, messageId);
-    await this.ensureCanParticipate(user, message.roomId);
+    const currentUser = this.normalizeUser(user);
+    const message = await this.getAccessibleMessage(currentUser, messageId);
+    await this.ensureCanParticipate(currentUser, message.roomId);
 
-    const reaction = await this.messagingRepository.removeReaction(user.schoolId, {
+    const reaction = await this.messagingRepository.removeReaction(currentUser.schoolId, {
       messageId,
-      userId: user.userId,
+      userId: currentUser.userId,
       reaction: dto.reaction.trim(),
     });
 
@@ -233,21 +280,22 @@ export class MessagingService {
     roomId: string,
     dto: MarkRoomAsReadDto,
   ) {
-    await this.ensureCanParticipate(user, roomId);
+    const currentUser = this.normalizeUser(user);
+    await this.ensureCanParticipate(currentUser, roomId);
 
     const message = await this.messagingRepository.findMessageById(
-      user.schoolId,
+      currentUser.schoolId,
       dto.lastReadMessageId,
-      user.userId,
+      currentUser.userId,
     );
 
     if (!message || message.roomId !== roomId) {
       throw new BadRequestException('lastReadMessageId must belong to the same room');
     }
 
-    const readState = await this.messagingRepository.markReadState(user.schoolId, {
+    const readState = await this.messagingRepository.markReadState(currentUser.schoolId, {
       roomId,
-      userId: user.userId,
+      userId: currentUser.userId,
       lastReadMessageId: dto.lastReadMessageId,
     });
 
@@ -263,14 +311,15 @@ export class MessagingService {
     messageId: string,
     dto: ReportMessageDto,
   ) {
-    const message = await this.getAccessibleMessage(user, messageId);
-    await this.ensureCanParticipate(user, message.roomId);
+    const currentUser = this.normalizeUser(user);
+    const message = await this.getAccessibleMessage(currentUser, messageId);
+    await this.ensureCanParticipate(currentUser, message.roomId);
 
     const report = await this.messagingRepository.createMessageReport(
-      user.schoolId,
+      currentUser.schoolId,
       {
         messageId,
-        reporterId: user.userId,
+        reporterId: currentUser.userId,
         reason: dto.reason,
         description: dto.description,
       },
@@ -280,11 +329,11 @@ export class MessagingService {
   }
 
   async validateRoomAccess(user: ChatUserContext, roomId: string) {
-    await this.getAccessibleRoom(user, roomId);
+    await this.getAccessibleRoom(this.normalizeUser(user), roomId);
   }
 
   async validateRoomParticipation(user: ChatUserContext, roomId: string) {
-    await this.ensureCanParticipate(user, roomId);
+    await this.ensureCanParticipate(this.normalizeUser(user), roomId);
   }
 
   private async getAccessibleRoom(user: ChatUserContext, roomId: string) {
@@ -376,5 +425,87 @@ export class MessagingService {
     return user.roles.some((role) =>
       ['super_admin', 'school_admin', 'moderator'].includes(role),
     );
+  }
+
+  private normalizeUser(user: ChatUserContext): ChatUserContext & { userId: string } {
+    const userId = user.userId ?? user.id;
+
+    if (!userId || !user.schoolId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
+    return {
+      ...user,
+      userId,
+    };
+  }
+
+  private async notifyMessageRecipients(
+    sender: ChatUserContext & { userId: string },
+    room: {
+      id: string;
+      roomType?: string;
+      name?: string | null;
+    },
+    message: Record<string, any>,
+  ): Promise<void> {
+    if (room.roomType !== ChatRoomTypes.Private && room.roomType !== ChatRoomTypes.Group) {
+      return;
+    }
+
+    const memberIds = await this.messagingRepository.findRoomMemberUserIds(
+      sender.schoolId,
+      room.id,
+    );
+    const recipientIds = memberIds.filter((memberId) => memberId !== sender.userId);
+
+    if (recipientIds.length === 0) {
+      return;
+    }
+
+    const title =
+      room.roomType === ChatRoomTypes.Private
+        ? 'New direct message'
+        : `New message in ${room.name ?? 'group room'}`;
+
+    const content = message.content ? String(message.content) : '[attachment]';
+
+    for (const recipientId of recipientIds) {
+      const notification = await this.notificationsService.createNotification({
+        schoolId: sender.schoolId,
+        userId: recipientId,
+        type: NotificationTypes.NewDirectMessage,
+        title,
+        body: content.slice(0, 1000),
+        referenceType: 'chat_room',
+        referenceId: room.id,
+        metadata: {
+          roomId: room.id,
+          senderId: sender.userId,
+          messageId: message.id,
+        },
+      });
+
+      const payload = {
+        id: notification.id,
+        title: notification.title,
+        content: notification.content,
+        type: 'message',
+        relatedId: room.id,
+        createdAt: notification.createdAt,
+      };
+
+      this.roomBroadcastService.emitLocalToRoom(
+        this.roomBroadcastService.getUserChannel(recipientId),
+        ChatEvents.NotificationCreated,
+        payload,
+      );
+      await this.chatEventsPublisher.publish(
+        ChatEvents.NotificationCreated,
+        sender.schoolId,
+        payload,
+        { userId: recipientId },
+      );
+    }
   }
 }

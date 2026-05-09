@@ -13,8 +13,15 @@ function resolveDatabaseUrl(): string {
 
   const parsed = new URL(databaseUrl);
   if (parsed.hostname === 'postgres') {
-    parsed.hostname = process.env.SEED_DB_HOST ?? 'localhost';
-    parsed.port = process.env.SEED_DB_PORT ?? process.env.POSTGRES_HOST_PORT ?? '5434';
+    if (process.env.SEED_DB_HOST) {
+      parsed.hostname = process.env.SEED_DB_HOST;
+      if (process.env.SEED_DB_PORT) {
+        parsed.port = process.env.SEED_DB_PORT;
+      }
+    } else if (process.platform === 'win32') {
+      parsed.hostname = 'localhost';
+      parsed.port = process.env.POSTGRES_HOST_PORT ?? '5434';
+    }
   }
 
   return parsed.toString();

@@ -34,10 +34,12 @@ export class NotificationsService {
   }
 
   async getUnreadCount(user: NotificationUserContext) {
-    return this.notificationsRepository.countUnreadNotifications(
+    const result = await this.notificationsRepository.countUnreadNotifications(
       user.schoolId,
       user.id,
     );
+
+    return { count: result.unreadCount };
   }
 
   async markAsRead(

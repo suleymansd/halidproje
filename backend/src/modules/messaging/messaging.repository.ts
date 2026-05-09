@@ -49,7 +49,7 @@ export class MessagingRepository {
     const roomType = query.roomType ?? 'all';
     const result = await this.pool.query(
       `
-        WITH current_user AS (
+        WITH cu AS (
           SELECT id, school_id, department_id
           FROM users
           WHERE id = $2 AND school_id = $1
@@ -89,7 +89,7 @@ export class MessagingRepository {
           last_sender.username AS last_message_sender_username,
           last_sender.role AS last_message_sender_role,
           COALESCE(unread.unread_count, 0) AS unread_count
-        FROM current_user cu
+        FROM cu
         INNER JOIN chat_rooms r
           ON r.school_id = cu.school_id
          AND r.is_active = true
@@ -809,6 +809,25 @@ export class MessagingRepository {
       status: result.rows[0].status,
       createdAt: this.toIso(result.rows[0].created_at),
     };
+  }
+
+  async findRoomMemberUserIds(
+    schoolId: string,
+    roomId: string,
+  ): Promise<string[]> {
+    const result = await this.pool.query(
+      `
+        SELECT user_id
+        FROM chat_room_members
+        WHERE school_id = $1
+          AND room_id = $2
+          AND is_active = true
+          AND left_at IS NULL
+      `,
+      [schoolId, roomId],
+    );
+
+    return result.rows.map((row) => row.user_id as string);
   }
 
   private async addRoomMemberWithClient(

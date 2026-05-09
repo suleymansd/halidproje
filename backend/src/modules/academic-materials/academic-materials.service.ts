@@ -15,6 +15,11 @@ import { VoteMaterialDto } from './dto/vote-material.dto';
 import { AcademicMaterialsRepository } from './academic-materials.repository';
 import { MaterialAccessPolicy } from './policies/material-access.policy';
 import { MaterialModerationPolicy } from './policies/material-moderation.policy';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationTypes } from '../notifications/constants/notification-types.constant';
+import { RoomBroadcastService } from '../messaging/gateways/room-broadcast.service';
+import { ChatEventsPublisher } from '../messaging/gateways/chat-events.publisher';
+import { ChatEvents } from '../messaging/constants/chat-events.constant';
 
 interface AcademicMaterialUserContext {
   id: string;
@@ -29,6 +34,9 @@ export class AcademicMaterialsService {
     private readonly academicMaterialsRepository: AcademicMaterialsRepository,
     private readonly materialAccessPolicy: MaterialAccessPolicy,
     private readonly materialModerationPolicy: MaterialModerationPolicy,
+    private readonly notificationsService: NotificationsService,
+    private readonly roomBroadcastService: RoomBroadcastService,
+    private readonly chatEventsPublisher: ChatEventsPublisher,
   ) {}
 
   async listMaterials(
@@ -186,12 +194,52 @@ export class AcademicMaterialsService {
       }
     }
 
-    return this.academicMaterialsRepository.createMaterialComment(
+    const comment = await this.academicMaterialsRepository.createMaterialComment(
       user.schoolId,
       materialId,
       user.id,
       dto,
     );
+
+    if (material.uploaderId !== user.id) {
+      const notification = await this.notificationsService.createNotification({
+        schoolId: user.schoolId,
+        userId: material.uploaderId,
+        type: NotificationTypes.MaterialComment,
+        title: 'New comment on your material',
+        body: dto.content.trim().slice(0, 1000),
+        referenceType: 'material',
+        referenceId: materialId,
+        metadata: {
+          materialId,
+          commentId: (comment as { id?: string })?.id ?? null,
+          commenterId: user.id,
+        },
+      });
+
+      const payload = {
+        id: (notification as { id: string }).id,
+        title: (notification as { title: string }).title,
+        content: (notification as { content: string }).content,
+        type: 'material',
+        relatedId: materialId,
+        createdAt: (notification as { createdAt: string }).createdAt,
+      };
+
+      this.roomBroadcastService.emitLocalToRoom(
+        this.roomBroadcastService.getUserChannel(material.uploaderId),
+        ChatEvents.NotificationCreated,
+        payload,
+      );
+      await this.chatEventsPublisher.publish(
+        ChatEvents.NotificationCreated,
+        user.schoolId,
+        payload,
+        { userId: material.uploaderId },
+      );
+    }
+
+    return comment;
   }
 
   async voteMaterial(

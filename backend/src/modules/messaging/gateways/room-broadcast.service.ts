@@ -11,6 +11,20 @@ export class RoomBroadcastService {
     this.gatewayAdapter.emitToRoom(this.getRoomChannel(roomId), eventName, payload);
   }
 
+  emitLocalToRoomExcept(
+    roomId: string,
+    excludedSocketId: string,
+    eventName: string,
+    payload: unknown,
+  ): void {
+    this.gatewayAdapter.emitToRoomExcept(
+      this.getRoomChannel(roomId),
+      excludedSocketId,
+      eventName,
+      payload,
+    );
+  }
+
   emitLocalToUserSockets(
     socketIds: string[],
     eventName: string,
@@ -22,11 +36,15 @@ export class RoomBroadcastService {
   handleDistributedEvent(event: DistributedChatEvent): void {
     if (event.roomId) {
       this.emitLocalToRoom(event.roomId, event.eventName, event.payload);
+      return;
     }
 
     if (event.userId) {
       this.gatewayAdapter.emitToRoom(this.getUserChannel(event.userId), event.eventName, event.payload);
+      return;
     }
+
+    this.gatewayAdapter.emitToAll(event.eventName, event.payload);
   }
 
   getRoomChannel(roomId: string): string {

@@ -15,5 +15,7 @@ export const ChatEvents = {
   TypingStart: 'typing.start',
   TypingStop: 'typing.stop',
   TypingUpdated: 'typing.updated',
+  PresenceUpdated: 'presence.updated',
+  NotificationCreated: 'notification.created',
   ChatError: 'chat.error',
 } as const;

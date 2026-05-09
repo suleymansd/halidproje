@@ -31,6 +31,14 @@ export class UsersController {
     return this.usersService.search(user.schoolId, query ?? '');
   }
 
+  @Get(':userId/presence')
+  getPresence(
+    @CurrentUserDecorator() user: CurrentUser,
+    @Param('userId') userId: string,
+  ) {
+    return this.usersService.getPresence(user.schoolId, userId);
+  }
+
   @Get(':userId')
   getById(
     @CurrentUserDecorator() user: CurrentUser,

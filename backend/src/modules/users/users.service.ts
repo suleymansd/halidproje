@@ -6,6 +6,7 @@ import {
 
 import { AppLoggerService } from '../../infrastructure/logging/logger.service';
 import { CompleteOnboardingDto } from '../auth/dto/complete-onboarding.dto';
+import { PresenceService } from '../messaging/gateways/presence.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserProfile } from './interfaces/user-profile.interface';
 import { UsersRepository } from './users.repository';
@@ -15,6 +16,7 @@ export class UsersService {
   constructor(
     private readonly usersRepository: UsersRepository,
     private readonly logger: AppLoggerService,
+    private readonly presenceService: PresenceService,
   ) {}
 
   async getCurrentProfile(userId: string, schoolId: string): Promise<UserProfile> {
@@ -41,6 +43,15 @@ export class UsersService {
     }
 
     return profile;
+  }
+
+  async getPresence(schoolId: string, userId: string) {
+    const profile = await this.usersRepository.findProfileById(userId, schoolId);
+    if (!profile) {
+      throw new NotFoundException('User not found');
+    }
+
+    return this.presenceService.getPresence(userId);
   }
 
   async updateMe(userId: string, schoolId: string, dto: UpdateUserDto) {

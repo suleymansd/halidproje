@@ -12,6 +12,7 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUserDecorator } from '../../shared/decorators/current-user.decorator';
 import { ChatUserContext } from './interfaces/chat-user-context.interface';
+import { CreateMessageDto } from './dto/create-message.dto';
 import { CreatePrivateRoomDto } from './dto/create-private-room.dto';
 import { ListRoomMessagesDto } from './dto/list-room-messages.dto';
 import { ListUserRoomsDto } from './dto/list-user-rooms.dto';
@@ -55,6 +56,22 @@ export class MessagingController {
     @Body() dto: CreatePrivateRoomDto,
   ) {
     return this.messagingService.createOrGetPrivateRoom(user, dto);
+  }
+
+  @Post('dm/start')
+  startDirectMessage(
+    @CurrentUserDecorator() user: ChatUserContext,
+    @Body() dto: CreatePrivateRoomDto,
+  ) {
+    return this.messagingService.startDirectMessage(user, dto);
+  }
+
+  @Post('messages')
+  sendMessage(
+    @CurrentUserDecorator() user: ChatUserContext,
+    @Body() dto: CreateMessageDto,
+  ) {
+    return this.messagingService.sendMessage(user, dto.roomId, dto);
   }
 
   @Patch('rooms/:roomId/read')

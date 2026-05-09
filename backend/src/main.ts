@@ -13,11 +13,30 @@ async function bootstrap(): Promise<void> {
     bufferLogs: true,
   });
 
+  const configuredOrigins = (process.env.CORS_ORIGIN ?? '*')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+
   app.enableCors({
-    origin: (process.env.CORS_ORIGIN ?? '*')
-      .split(',')
-      .map((value) => value.trim())
-      .filter(Boolean),
+    origin: (origin, callback) => {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      const isWildcard = configuredOrigins.includes('*');
+      const isConfigured = configuredOrigins.includes(origin);
+      const isLocalhost = /^https?:\/\/localhost(:\d+)?$/i.test(origin);
+      const isLocalIp = /^https?:\/\/127\.0\.0\.1(:\d+)?$/i.test(origin);
+
+      if (isWildcard || isConfigured || isLocalhost || isLocalIp) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error('CORS origin not allowed'));
+    },
     credentials: true,
   });
   app.enableShutdownHooks();

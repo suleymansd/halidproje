@@ -30,6 +30,7 @@ import { ChatEventsPublisher } from './chat-events.publisher';
 import { ChatGatewayAdapter } from './chat.gateway.adapter';
 import { RoomBroadcastService } from './room-broadcast.service';
 import { SocketSessionService } from './socket-session.service';
+import { PresenceService } from './presence.service';
 
 type AuthenticatedSocket = Socket & {
   data: {
@@ -57,6 +58,7 @@ export class ChatGateway
     private readonly chatEventsPublisher: ChatEventsPublisher,
     private readonly roomBroadcastService: RoomBroadcastService,
     private readonly socketSessionService: SocketSessionService,
+    private readonly presenceService: PresenceService,
     private readonly jwtService: JwtService,
   ) {}
 
@@ -69,6 +71,15 @@ export class ChatGateway
 
       await this.socketSessionService.registerSocket(client.id, user);
       await client.join(this.roomBroadcastService.getUserChannel(user.userId));
+      const presenceChange = this.presenceService.markOnline(user.userId, client.id);
+      if (presenceChange.becameOnline) {
+        this.server.emit(ChatEvents.PresenceUpdated, presenceChange.state);
+        await this.chatEventsPublisher.publish(
+          ChatEvents.PresenceUpdated,
+          user.schoolId,
+          presenceChange.state,
+        );
+      }
       this.logger.debug(`Socket connected: ${client.id}`);
     } catch (error) {
       this.logger.warn(`Socket rejected: ${client.id}`);
@@ -80,6 +91,19 @@ export class ChatGateway
   }
 
   async handleDisconnect(client: AuthenticatedSocket): Promise<void> {
+    const user = client.data.user;
+    if (user) {
+      const presenceChange = this.presenceService.markOffline(user.userId, client.id);
+      if (presenceChange.becameOffline) {
+        this.server.emit(ChatEvents.PresenceUpdated, presenceChange.state);
+        await this.chatEventsPublisher.publish(
+          ChatEvents.PresenceUpdated,
+          user.schoolId,
+          presenceChange.state,
+        );
+      }
+    }
+
     await this.socketSessionService.unregisterSocket(client.id);
     this.logger.debug(`Socket disconnected: ${client.id}`);
   }
@@ -115,7 +139,6 @@ export class ChatGateway
   ) {
     const user = this.getSocketUser(client);
     const result = await this.messagingService.sendMessage(user, payload.roomId, payload);
-    this.broadcastToRoom(result.roomId, ChatEvents.MessageCreated, result.payload, user.schoolId);
     return result.payload;
   }
 
@@ -195,15 +218,15 @@ export class ChatGateway
     const eventPayload = {
       roomId: payload.roomId,
       userId: user.userId,
-      state: 'started',
-      expiresAt: new Date(Date.now() + 5000).toISOString(),
+      isTyping: true,
+      userName: user.username ?? user.email ?? user.userId,
     };
 
-    await this.broadcastToRoom(
+    this.roomBroadcastService.emitLocalToRoomExcept(
       payload.roomId,
+      client.id,
       ChatEvents.TypingUpdated,
       eventPayload,
-      user.schoolId,
     );
   }
 
@@ -218,15 +241,15 @@ export class ChatGateway
     const eventPayload = {
       roomId: payload.roomId,
       userId: user.userId,
-      state: 'stopped',
-      expiresAt: new Date().toISOString(),
+      isTyping: false,
+      userName: user.username ?? user.email ?? user.userId,
     };
 
-    await this.broadcastToRoom(
+    this.roomBroadcastService.emitLocalToRoomExcept(
       payload.roomId,
+      client.id,
       ChatEvents.TypingUpdated,
       eventPayload,
-      user.schoolId,
     );
   }
 
@@ -249,6 +272,8 @@ export class ChatGateway
       roles: [payload.role],
       sessionId: payload.sid,
       socketId: client.id,
+      username: payload.username,
+      email: payload.email,
     };
   }
 

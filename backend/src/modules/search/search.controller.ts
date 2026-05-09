@@ -1,7 +1,7 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 
 import { CurrentUserDecorator } from '../../shared/decorators/current-user.decorator';
-import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SearchGroupsDto } from './dto/search-groups.dto';
 import { SearchMaterialsDto } from './dto/search-materials.dto';
 import { SearchQueryDto } from './dto/search-query.dto';
