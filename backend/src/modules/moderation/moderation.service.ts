@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -10,6 +11,7 @@ import { CloseCaseDto } from './dto/close-case.dto';
 import { CreateCaseDto } from './dto/create-case.dto';
 import { CreateReportDto } from './dto/create-report.dto';
 import { ListReportsDto } from './dto/list-reports.dto';
+import { ReviewReportDto } from './dto/review-report.dto';
 import { ModerationActionPayload } from './interfaces/moderation-action.interface';
 import { ModerationRepository } from './moderation.repository';
 import { ModerationAccessPolicy } from './policies/moderation-access.policy';
@@ -33,7 +35,12 @@ export class ModerationService {
     user: ModerationUserContext,
     dto: CreateReportDto,
   ) {
-    // TODO: Validate referenced entity belongs to the same school.
+    if (dto.referenceType === 'user') {
+      throw new BadRequestException(
+        'User reports are not supported in the current MVP schema',
+      );
+    }
+
     return this.moderationRepository.createReport(user.schoolId, user.id, dto);
   }
 
@@ -64,6 +71,26 @@ export class ModerationService {
 
     this.moderationAccessPolicy.assertSameSchool(user.schoolId, report.schoolId);
     return report;
+  }
+
+  async reviewReport(
+    user: ModerationUserContext,
+    reportId: string,
+    dto: ReviewReportDto,
+  ) {
+    this.moderatorRolePolicy.assertModerator(user.roles);
+    const reviewed = await this.moderationRepository.reviewReport(
+      user.schoolId,
+      reportId,
+      user.id,
+      dto,
+    );
+
+    if (!reviewed) {
+      throw new NotFoundException('Report not found');
+    }
+
+    return reviewed;
   }
 
   async createCase(

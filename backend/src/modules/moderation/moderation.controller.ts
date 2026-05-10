@@ -17,6 +17,7 @@ import { CloseCaseDto } from './dto/close-case.dto';
 import { CreateCaseDto } from './dto/create-case.dto';
 import { CreateReportDto } from './dto/create-report.dto';
 import { ListReportsDto } from './dto/list-reports.dto';
+import { ReviewReportDto } from './dto/review-report.dto';
 import { ModerationService } from './moderation.service';
 
 interface ModerationUserContext {
@@ -52,6 +53,15 @@ export class ModerationController {
     @Param('id') reportId: string,
   ) {
     return this.moderationService.getReportById(user, reportId);
+  }
+
+  @Patch('reports/:id')
+  reviewReport(
+    @CurrentUserDecorator() user: ModerationUserContext,
+    @Param('id') reportId: string,
+    @Body() dto: ReviewReportDto,
+  ) {
+    return this.moderationService.reviewReport(user, reportId, dto);
   }
 
   @Post('cases')

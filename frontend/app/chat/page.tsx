@@ -11,6 +11,7 @@ import {
   getMessages,
   getRooms,
   markRoomAsRead,
+  reportChatMessage,
   sendMessage
 } from "../../lib/api";
 import { clearAccessToken, getAccessToken } from "../../lib/auth";
@@ -177,23 +178,38 @@ function getLastMessagePreview(room: ChatRoom, currentUserId: string | null): st
 }
 
 export default function ChatPage() {
+  const ROOM_PAGE_SIZE = 20;
   const router = useRouter();
   const initialRoomIdRef = useRef<string | null>(null);
   const currentUserIdRef = useRef<string | null>(null);
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messagesCursor, setMessagesCursor] = useState<string | null>(null);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [messageInput, setMessageInput] = useState("");
   const [roomsLoading, setRoomsLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
   const [presenceMap, setPresenceMap] = useState<Record<string, PresencePayload>>({});
+  const [messageReportTarget, setMessageReportTarget] = useState<NormalizedMessage | null>(null);
+  const [messageReportReason, setMessageReportReason] = useState<
+    | "spam"
+    | "harassment"
+    | "hate_speech"
+    | "inappropriate_content"
+    | "copyright"
+    | "misinformation"
+    | "other"
+  >("inappropriate_content");
+  const [messageReportDescription, setMessageReportDescription] = useState("");
   const socketRef = useRef<Socket | null>(null);
   const joinedRoomsRef = useRef<Set<string>>(new Set());
   const selectedRoomRef = useRef<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messagesViewportRef = useRef<HTMLDivElement | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
 
@@ -349,14 +365,21 @@ export default function ChatPage() {
   }, [rooms, selectedRoomId]);
 
   useEffect(() => {
-    if (!messagesEndRef.current) return;
-    messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+    const frame = window.requestAnimationFrame(() => {
+      const viewport = messagesViewportRef.current;
+      if (!viewport) return;
+      viewport.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
   }, [messages]);
 
   const selectedRoom = useMemo(
     () => rooms.find((room) => room.id === selectedRoomId) ?? null,
     [rooms, selectedRoomId]
   );
+
+  const visibleRooms = useMemo(() => rooms.slice(0, ROOM_PAGE_SIZE), [rooms]);
 
   const normalizedMessages = useMemo(
     () => messages.map((message) => normalizeMessage(message, currentUserIdRef.current)),
@@ -425,8 +448,9 @@ export default function ChatPage() {
     setMessagesLoading(true);
     setError(null);
     try {
-      const data = await getMessages(roomId);
+      const data = await getMessages(roomId, { limit: 30, direction: "older" });
       setMessages(data.items);
+      setMessagesCursor(data.nextCursor);
       const lastMessage = data.items[data.items.length - 1];
       if (lastMessage?.id) {
         await markRoomAsRead(roomId, lastMessage.id);
@@ -441,6 +465,42 @@ export default function ChatPage() {
       setError("Failed to load messages.");
     } finally {
       setMessagesLoading(false);
+    }
+  }
+
+  async function loadOlderMessages() {
+    if (!selectedRoomId || !messagesCursor || loadingOlderMessages) return;
+
+    const viewport = messagesViewportRef.current;
+    const previousHeight = viewport?.scrollHeight ?? 0;
+    setLoadingOlderMessages(true);
+    setError(null);
+    try {
+      const data = await getMessages(selectedRoomId, {
+        cursor: messagesCursor,
+        limit: 30,
+        direction: "older"
+      });
+      setMessages((prev) => {
+        const seen = new Set(prev.map((message) => message.id));
+        const older = data.items.filter((message) => !seen.has(message.id));
+        return [...older, ...prev];
+      });
+      setMessagesCursor(data.nextCursor);
+
+      window.requestAnimationFrame(() => {
+        const nextViewport = messagesViewportRef.current;
+        if (!nextViewport) return;
+        const nextHeight = nextViewport.scrollHeight;
+        nextViewport.scrollTop = nextHeight - previousHeight;
+      });
+    } catch (err) {
+      if (handleAuthError(err)) {
+        return;
+      }
+      setError("Failed to load older messages.");
+    } finally {
+      setLoadingOlderMessages(false);
     }
   }
 
@@ -570,11 +630,36 @@ export default function ChatPage() {
     router.replace("/");
   }
 
+  async function onSubmitMessageReport(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!messageReportTarget) return;
+
+    setReporting(true);
+    setError(null);
+    try {
+      await reportChatMessage(messageReportTarget.id, {
+        reason: messageReportReason,
+        description: messageReportDescription.trim() || undefined
+      });
+      setMessageReportTarget(null);
+      setMessageReportDescription("");
+      setMessageReportReason("inappropriate_content");
+      setError(null);
+    } catch (err) {
+      if (handleAuthError(err)) {
+        return;
+      }
+      setError("Failed to report message.");
+    } finally {
+      setReporting(false);
+    }
+  }
+
   return (
-    <main className="chat-scene relative h-screen overflow-hidden text-slate-100">
+    <main className="chat-scene relative min-h-screen overflow-x-hidden text-slate-100 md:h-screen md:overflow-hidden">
       <div className="chat-pattern pointer-events-none absolute inset-0" />
-      <div className="relative mx-auto grid h-full max-w-7xl grid-cols-1 gap-0 md:grid-cols-[340px_1fr] md:p-4">
-        <aside className="flex h-full flex-col border-b border-[rgba(127,183,220,0.16)] bg-[rgba(16,33,49,0.94)] md:rounded-l-3xl md:border md:border-r-0">
+      <div className="relative mx-auto grid min-h-screen max-w-7xl grid-cols-1 gap-0 md:h-full md:min-h-0 md:grid-cols-[340px_1fr] md:p-4">
+        <aside className="flex min-h-0 flex-col border-b border-[rgba(127,183,220,0.16)] bg-[rgba(16,33,49,0.94)] md:rounded-l-3xl md:border md:border-r-0">
           <div className="border-b border-[rgba(127,183,220,0.16)] px-4 py-4">
             <div className="flex items-center justify-between">
               <div>
@@ -607,10 +692,40 @@ export default function ChatPage() {
               >
                 Search
               </Link>
+              <Link
+                href="/groups"
+                className="rounded-full border border-[rgba(127,183,220,0.2)] px-3 py-1.5 text-slate-300 transition hover:bg-[rgba(56,128,176,0.12)]"
+              >
+                Groups
+              </Link>
+              <Link
+                href="/departments"
+                className="rounded-full border border-[rgba(127,183,220,0.2)] px-3 py-1.5 text-slate-300 transition hover:bg-[rgba(56,128,176,0.12)]"
+              >
+                Departments
+              </Link>
+              <Link
+                href="/courses"
+                className="rounded-full border border-[rgba(127,183,220,0.2)] px-3 py-1.5 text-slate-300 transition hover:bg-[rgba(56,128,176,0.12)]"
+              >
+                Courses
+              </Link>
+              <Link
+                href="/settings"
+                className="rounded-full border border-[rgba(127,183,220,0.2)] px-3 py-1.5 text-slate-300 transition hover:bg-[rgba(56,128,176,0.12)]"
+              >
+                Settings
+              </Link>
+              <Link
+                href="/admin"
+                className="rounded-full border border-[rgba(127,183,220,0.2)] px-3 py-1.5 text-slate-300 transition hover:bg-[rgba(56,128,176,0.12)]"
+              >
+                Admin
+              </Link>
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          <div className="max-h-[50vh] min-h-0 flex-1 overflow-y-auto p-3 md:max-h-none">
             {roomsLoading ? (
               <div className="space-y-3">
                 {Array.from({ length: 5 }).map((_, index) => (
@@ -634,7 +749,7 @@ export default function ChatPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                {rooms.map((room) => {
+                {visibleRooms.map((room) => {
                   const isActive = selectedRoomId === room.id;
                   const roomName = getRoomTitle(room);
                   const roomTypeLabel = getRoomTypeLabel(room.roomType);
@@ -669,12 +784,17 @@ export default function ChatPage() {
                     </button>
                   );
                 })}
+                {rooms.length > ROOM_PAGE_SIZE ? (
+                  <p className="px-2 pt-2 text-xs text-slate-500">
+                    Showing {visibleRooms.length} of {rooms.length} conversations. Newest rooms stay visible first.
+                  </p>
+                ) : null}
               </div>
             )}
           </div>
         </aside>
 
-        <section className="flex h-full min-h-0 flex-col bg-[rgba(8,19,29,0.82)] md:rounded-r-3xl md:border md:border-[rgba(127,183,220,0.16)]">
+        <section className="flex min-h-[55vh] flex-col bg-[rgba(8,19,29,0.82)] md:h-full md:min-h-0 md:rounded-r-3xl md:border md:border-[rgba(127,183,220,0.16)]">
           <header className="border-b border-[rgba(127,183,220,0.16)] bg-[rgba(16,33,49,0.72)] px-4 py-4 backdrop-blur">
             {selectedRoom ? (
               <div className="flex items-center justify-between gap-4">
@@ -708,7 +828,10 @@ export default function ChatPage() {
             )}
           </header>
 
-          <div className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,_rgba(56,128,176,0.12),_transparent_32%),linear-gradient(180deg,_rgba(15,29,43,0.92),_rgba(8,19,29,1))] px-4 py-5">
+          <div
+            ref={messagesViewportRef}
+            className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,_rgba(56,128,176,0.12),_transparent_32%),linear-gradient(180deg,_rgba(15,29,43,0.92),_rgba(8,19,29,1))] px-4 py-5"
+          >
             {messagesLoading ? (
               <div className="space-y-4">
                 {Array.from({ length: 6 }).map((_, index) => (
@@ -743,6 +866,18 @@ export default function ChatPage() {
               </div>
             ) : (
               <div className="space-y-4">
+                {messagesCursor ? (
+                  <div className="flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => void loadOlderMessages()}
+                      disabled={loadingOlderMessages}
+                      className="rounded-full border border-[rgba(127,183,220,0.18)] px-4 py-2 text-xs text-slate-300 hover:bg-[rgba(56,128,176,0.12)] disabled:opacity-60"
+                    >
+                      {loadingOlderMessages ? "Loading..." : "Load older messages"}
+                    </button>
+                  </div>
+                ) : null}
                 {normalizedMessages.map((message) => {
                   const showSenderName = !message.isSelf && selectedRoom?.roomType !== "private";
 
@@ -780,19 +915,34 @@ export default function ChatPage() {
                           <p className="text-sm leading-6">
                             {message.content?.trim() ? message.content : "[deleted]"}
                           </p>
-                          <p
-                            className={`mt-2 text-[11px] ${
-                              message.isSelf ? "text-slate-800/80" : "text-slate-500"
-                            }`}
-                          >
-                            {formatTime(message.createdAt)}
-                          </p>
+                          <div className="mt-2 flex items-center justify-between gap-3">
+                            <p
+                              className={`text-[11px] ${
+                                message.isSelf ? "text-slate-800/80" : "text-slate-500"
+                              }`}
+                            >
+                              {formatTime(message.createdAt)}
+                            </p>
+                            {!message.isSelf && message.content?.trim() ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setMessageReportTarget(message);
+                                  setMessageReportReason("inappropriate_content");
+                                  setMessageReportDescription("");
+                                  setError(null);
+                                }}
+                                className="text-[11px] text-rose-300 transition hover:text-rose-200"
+                              >
+                                Report
+                              </button>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
                     </article>
                   );
                 })}
-                <div ref={messagesEndRef} />
               </div>
             )}
           </div>
@@ -833,6 +983,78 @@ export default function ChatPage() {
           </form>
         </section>
       </div>
+
+      {messageReportTarget ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4">
+          <form
+            onSubmit={onSubmitMessageReport}
+            className="w-full max-w-md rounded-2xl border border-[rgba(127,183,220,0.16)] bg-[rgba(16,33,49,0.96)] p-5 shadow-[0_20px_80px_rgba(8,19,29,0.45)] backdrop-blur"
+          >
+            <h2 className="text-lg font-semibold text-white">Report message</h2>
+            <p className="mt-2 text-sm text-slate-400">
+              Report a message from {messageReportTarget.normalizedSenderName}.
+            </p>
+            <label className="mt-4 block">
+              <span className="mb-1 block text-xs text-slate-400">Reason</span>
+              <select
+                value={messageReportReason}
+                onChange={(event) =>
+                  setMessageReportReason(
+                    event.target.value as
+                      | "spam"
+                      | "harassment"
+                      | "hate_speech"
+                      | "inappropriate_content"
+                      | "copyright"
+                      | "misinformation"
+                      | "other"
+                  )
+                }
+                className="w-full rounded-xl border border-[rgba(127,183,220,0.16)] bg-[rgba(8,19,29,0.82)] px-3 py-2 text-sm outline-none ring-[#3880b0] focus:ring-2"
+              >
+                <option value="inappropriate_content">Inappropriate content</option>
+                <option value="spam">Spam</option>
+                <option value="harassment">Harassment</option>
+                <option value="hate_speech">Hate speech</option>
+                <option value="copyright">Copyright</option>
+                <option value="misinformation">Misinformation</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+            <label className="mt-3 block">
+              <span className="mb-1 block text-xs text-slate-400">Description</span>
+              <textarea
+                value={messageReportDescription}
+                onChange={(event) => setMessageReportDescription(event.target.value)}
+                rows={4}
+                placeholder="Optional context for moderators"
+                className="w-full rounded-xl border border-[rgba(127,183,220,0.16)] bg-[rgba(8,19,29,0.82)] px-3 py-2 text-sm outline-none ring-[#3880b0] focus:ring-2"
+              />
+            </label>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (reporting) return;
+                  setMessageReportTarget(null);
+                  setMessageReportDescription("");
+                  setMessageReportReason("inappropriate_content");
+                }}
+                className="rounded-full border border-[rgba(127,183,220,0.2)] px-4 py-2 text-sm hover:bg-[rgba(56,128,176,0.12)]"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={reporting}
+                className="rounded-full bg-rose-500 px-4 py-2 text-sm font-medium text-white hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {reporting ? "Reporting..." : "Submit report"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </main>
   );
 }

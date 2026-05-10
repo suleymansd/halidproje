@@ -7,12 +7,12 @@ export class DepartmentsController {
   constructor(private readonly departmentsService: DepartmentsService) {}
 
   @Get()
-  findAll(): Promise<void> {
+  findAll(): Promise<unknown[]> {
     return this.departmentsService.findAll();
   }
 
   @Get(':departmentId')
-  findById(@Param('departmentId') departmentId: string): Promise<void> {
+  findById(@Param('departmentId') departmentId: string): Promise<unknown> {
     return this.departmentsService.findById(departmentId);
   }
 }

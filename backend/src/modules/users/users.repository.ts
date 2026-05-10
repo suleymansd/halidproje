@@ -122,6 +122,7 @@ export class UsersRepository {
           school_id = COALESCE($4, school_id),
           department_id = COALESCE($5, department_id),
           username = COALESCE($6, username),
+          bio = COALESCE($7, bio),
           onboarding_completed = true,
           updated_at = now()
         WHERE id = $1 AND school_id = $2
@@ -133,6 +134,7 @@ export class UsersRepository {
         dto.school_id ?? dto.schoolId ?? null,
         dto.department_id ?? dto.departmentId ?? null,
         dto.username ?? null,
+        dto.bio ?? null,
       ],
     );
   }

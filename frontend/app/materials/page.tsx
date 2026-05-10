@@ -5,19 +5,28 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AcademicMaterial,
+  Course,
+  Department,
   createMaterial,
+  getCourses,
+  getDepartments,
   getMaterials
 } from "../../lib/api";
 import { clearAccessToken, getAccessToken } from "../../lib/auth";
 import { NotificationBell } from "../../components/notification-bell";
 
 export default function MaterialsPage() {
+  const PAGE_SIZE = 12;
   const router = useRouter();
   const [materials, setMaterials] = useState<AcademicMaterial[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
 
   const [departmentFilter, setDepartmentFilter] = useState("");
   const [courseFilter, setCourseFilter] = useState("");
@@ -39,7 +48,16 @@ export default function MaterialsPage() {
     if (!ensureToken()) {
       return;
     }
-    void loadMaterials();
+    const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const department = params?.get("department");
+    const course = params?.get("course");
+    if (department) {
+      setDepartmentFilter(department);
+    }
+    if (course) {
+      setCourseFilter(course);
+    }
+    void bootstrap();
   }, [router]);
 
   const parsedFilterTags = useMemo(
@@ -51,11 +69,15 @@ export default function MaterialsPage() {
     [tagsFilter]
   );
 
-  function isUuid(value: string) {
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      value
-    );
-  }
+  const filteredCourses = useMemo(() => {
+    if (!departmentFilter) return courses;
+    return courses.filter((course) => course.departmentId === departmentFilter);
+  }, [courses, departmentFilter]);
+
+  const createCourses = useMemo(() => {
+    if (!departmentId) return courses;
+    return courses.filter((course) => course.departmentId === departmentId);
+  }, [courses, departmentId]);
 
   function ensureToken() {
     const token = getAccessToken();
@@ -76,6 +98,41 @@ export default function MaterialsPage() {
     return false;
   }
 
+  async function bootstrap() {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+      const [materialResponse, departmentList, courseList] = await Promise.all([
+        getMaterials({
+          departmentId: params?.get("department") || undefined,
+          courseId: params?.get("course") || undefined
+        }),
+        getDepartments(),
+        getCourses()
+      ]);
+      setDepartments(departmentList);
+      setCourses(courseList);
+      setMaterials(sortItems(materialResponse.items ?? [], sort));
+      setNextCursor(materialResponse.nextCursor ?? null);
+    } catch (err) {
+      if (handleAuthError(err)) return;
+      setError("Failed to load materials.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function sortItems(items: AcademicMaterial[], mode: "newest" | "most_upvoted") {
+    return mode === "most_upvoted"
+      ? [...items].sort((a, b) => (b.voteCount ?? 0) - (a.voteCount ?? 0))
+      : [...items].sort((a, b) => {
+          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return bTime - aTime;
+        });
+  }
+
   async function loadMaterials() {
     if (!ensureToken()) {
       return;
@@ -83,24 +140,13 @@ export default function MaterialsPage() {
     setLoading(true);
     setError(null);
     try {
-      const safeDepartmentId = departmentFilter.trim();
-      const safeCourseId = courseFilter.trim();
       const response = await getMaterials({
-        departmentId:
-          safeDepartmentId && isUuid(safeDepartmentId) ? safeDepartmentId : undefined,
-        courseId: safeCourseId && isUuid(safeCourseId) ? safeCourseId : undefined,
+        departmentId: departmentFilter || undefined,
+        courseId: courseFilter || undefined,
         tags: parsedFilterTags.length ? parsedFilterTags : undefined
       });
-      const items = response.items ?? [];
-      const sortedItems =
-        sort === "most_upvoted"
-          ? [...items].sort((a, b) => (b.voteCount ?? 0) - (a.voteCount ?? 0))
-          : [...items].sort((a, b) => {
-              const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-              const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-              return bTime - aTime;
-            });
-      setMaterials(sortedItems);
+      setMaterials(sortItems(response.items ?? [], sort));
+      setNextCursor(response.nextCursor ?? null);
     } catch (err) {
       if (handleAuthError(err)) return;
       setError("Failed to load materials.");
@@ -128,29 +174,20 @@ export default function MaterialsPage() {
       if (!ensureToken()) {
         return;
       }
-      const safeDepartmentId = departmentId.trim();
-      const safeCourseId = courseId.trim();
-      const normalizedMaterialType = materialType.trim() || "pdf";
-      const normalizedStorageUrl =
-        storageUrl.trim() || "https://example.com/dev-placeholder.pdf";
-      const normalizedFilename = filename.trim() || "dev-placeholder.pdf";
-      const normalizedFileType = fileType.trim() || "application/pdf";
-      const normalizedFileSize = fileSize.trim() || "12345";
       const created = await createMaterial({
         title: title.trim(),
         description: description.trim() || undefined,
-        departmentId:
-          safeDepartmentId && isUuid(safeDepartmentId) ? safeDepartmentId : undefined,
-        courseId: safeCourseId && isUuid(safeCourseId) ? safeCourseId : undefined,
+        departmentId: departmentId || undefined,
+        courseId: courseId || undefined,
         tags: tags
           .split(",")
           .map((tag) => tag.trim())
           .filter(Boolean),
-        materialType: normalizedMaterialType,
-        storageUrl: normalizedStorageUrl,
-        filename: normalizedFilename,
-        fileType: normalizedFileType,
-        fileSize: normalizedFileSize.replace(/\D/g, "") || "12345"
+        materialType: materialType.trim() || "pdf",
+        storageUrl: storageUrl.trim() || "https://example.com/dev-placeholder.pdf",
+        filename: filename.trim() || "dev-placeholder.pdf",
+        fileType: fileType.trim() || "application/pdf",
+        fileSize: fileSize.trim().replace(/\D/g, "") || "12345"
       });
       setSuccess("Material created.");
       setTitle("");
@@ -182,6 +219,33 @@ export default function MaterialsPage() {
     router.replace("/");
   }
 
+  async function loadMoreMaterials() {
+    if (!nextCursor || loadingMore) return;
+
+    setLoadingMore(true);
+    setError(null);
+    try {
+      const response = await getMaterials({
+        departmentId: departmentFilter || undefined,
+        courseId: courseFilter || undefined,
+        tags: parsedFilterTags.length ? parsedFilterTags : undefined,
+        cursor: nextCursor
+      });
+
+      setMaterials((prev) => {
+        const existingIds = new Set(prev.map((item) => item.id));
+        const merged = [...prev, ...(response.items ?? []).filter((item) => !existingIds.has(item.id))];
+        return sortItems(merged, sort);
+      });
+      setNextCursor(response.nextCursor ?? null);
+    } catch (err) {
+      if (handleAuthError(err)) return;
+      setError("Failed to load more materials.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
   return (
     <main className="materials-scene relative min-h-screen overflow-hidden text-slate-100">
       <div className="materials-pattern pointer-events-none absolute inset-0" />
@@ -200,6 +264,12 @@ export default function MaterialsPage() {
             <Link href="/search" className="rounded-full px-3 py-1.5 hover:bg-[rgba(56,128,176,0.12)]">
               Search
             </Link>
+            <Link href="/departments" className="rounded-full px-3 py-1.5 hover:bg-[rgba(56,128,176,0.12)]">
+              Departments
+            </Link>
+            <Link href="/courses" className="rounded-full px-3 py-1.5 hover:bg-[rgba(56,128,176,0.12)]">
+              Courses
+            </Link>
           </div>
           <div className="flex items-center gap-2">
             <NotificationBell />
@@ -212,6 +282,15 @@ export default function MaterialsPage() {
           </div>
         </header>
 
+        <div className="mb-4 flex flex-wrap gap-2 text-xs text-slate-300">
+          <Link href="/departments" className="rounded-full border border-[rgba(127,183,220,0.18)] px-3 py-1.5 hover:bg-[rgba(56,128,176,0.12)]">
+            Browse departments
+          </Link>
+          <Link href="/courses" className="rounded-full border border-[rgba(127,183,220,0.18)] px-3 py-1.5 hover:bg-[rgba(56,128,176,0.12)]">
+            Browse courses
+          </Link>
+        </div>
+
         <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
           <aside className="space-y-4">
             <form
@@ -220,20 +299,38 @@ export default function MaterialsPage() {
             >
               <h2 className="mb-3 text-sm font-semibold">Filters</h2>
               <label className="mb-2 block">
-                <span className="mb-1 block text-xs text-slate-400">Department ID</span>
-                <input
+                <span className="mb-1 block text-xs text-slate-400">Department</span>
+                <select
                   value={departmentFilter}
-                  onChange={(e) => setDepartmentFilter(e.target.value)}
+                  onChange={(e) => {
+                    setDepartmentFilter(e.target.value);
+                    setCourseFilter("");
+                  }}
                   className="w-full rounded-xl border border-[rgba(127,183,220,0.16)] bg-[rgba(8,19,29,0.82)] px-3 py-2 text-sm outline-none ring-[#3880b0] focus:ring-2"
-                />
+                >
+                  <option value="">All departments</option>
+                  {departments.map((department) => (
+                    <option key={department.id} value={department.id}>
+                      {department.name}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="mb-2 block">
-                <span className="mb-1 block text-xs text-slate-400">Course ID</span>
-                <input
+                <span className="mb-1 block text-xs text-slate-400">Course</span>
+                <select
                   value={courseFilter}
                   onChange={(e) => setCourseFilter(e.target.value)}
                   className="w-full rounded-xl border border-[rgba(127,183,220,0.16)] bg-[rgba(8,19,29,0.82)] px-3 py-2 text-sm outline-none ring-[#3880b0] focus:ring-2"
-                />
+                >
+                  <option value="">All courses</option>
+                  {filteredCourses.map((course) => (
+                    <option key={course.id} value={course.id}>
+                      {course.code ? `${course.code} · ` : ""}
+                      {course.name}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="mb-2 block">
                 <span className="mb-1 block text-xs text-slate-400">Tags (comma)</span>
@@ -286,20 +383,38 @@ export default function MaterialsPage() {
                 />
               </label>
               <label className="mb-2 block">
-                <span className="mb-1 block text-xs text-slate-400">Department ID</span>
-                <input
+                <span className="mb-1 block text-xs text-slate-400">Department</span>
+                <select
                   value={departmentId}
-                  onChange={(e) => setDepartmentId(e.target.value)}
+                  onChange={(e) => {
+                    setDepartmentId(e.target.value);
+                    setCourseId("");
+                  }}
                   className="w-full rounded-xl border border-[rgba(127,183,220,0.16)] bg-[rgba(8,19,29,0.82)] px-3 py-2 text-sm outline-none ring-[#3880b0] focus:ring-2"
-                />
+                >
+                  <option value="">No department</option>
+                  {departments.map((department) => (
+                    <option key={department.id} value={department.id}>
+                      {department.name}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="mb-2 block">
-                <span className="mb-1 block text-xs text-slate-400">Course ID</span>
-                <input
+                <span className="mb-1 block text-xs text-slate-400">Course</span>
+                <select
                   value={courseId}
                   onChange={(e) => setCourseId(e.target.value)}
                   className="w-full rounded-xl border border-[rgba(127,183,220,0.16)] bg-[rgba(8,19,29,0.82)] px-3 py-2 text-sm outline-none ring-[#3880b0] focus:ring-2"
-                />
+                >
+                  <option value="">No course</option>
+                  {createCourses.map((course) => (
+                    <option key={course.id} value={course.id}>
+                      {course.code ? `${course.code} · ` : ""}
+                      {course.name}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="mb-3 block">
                 <span className="mb-1 block text-xs text-slate-400">Tags (comma)</span>
@@ -320,9 +435,7 @@ export default function MaterialsPage() {
                 />
               </label>
               <label className="mb-2 block">
-                <span className="mb-1 block text-xs text-slate-400">
-                  Storage URL (optional)
-                </span>
+                <span className="mb-1 block text-xs text-slate-400">Storage URL (optional)</span>
                 <input
                   value={storageUrl}
                   onChange={(e) => setStorageUrl(e.target.value)}
@@ -331,9 +444,7 @@ export default function MaterialsPage() {
                 />
               </label>
               <label className="mb-2 block">
-                <span className="mb-1 block text-xs text-slate-400">
-                  Filename (optional)
-                </span>
+                <span className="mb-1 block text-xs text-slate-400">Filename (optional)</span>
                 <input
                   value={filename}
                   onChange={(e) => setFilename(e.target.value)}
@@ -342,9 +453,7 @@ export default function MaterialsPage() {
                 />
               </label>
               <label className="mb-2 block">
-                <span className="mb-1 block text-xs text-slate-400">
-                  File Type (optional)
-                </span>
+                <span className="mb-1 block text-xs text-slate-400">File Type (optional)</span>
                 <input
                   value={fileType}
                   onChange={(e) => setFileType(e.target.value)}
@@ -353,9 +462,7 @@ export default function MaterialsPage() {
                 />
               </label>
               <label className="mb-3 block">
-                <span className="mb-1 block text-xs text-slate-400">
-                  File Size (digits only, optional)
-                </span>
+                <span className="mb-1 block text-xs text-slate-400">File Size (digits only, optional)</span>
                 <input
                   value={fileSize}
                   onChange={(e) => setFileSize(e.target.value)}
@@ -381,7 +488,7 @@ export default function MaterialsPage() {
             {loading ? (
               <p className="text-sm text-slate-400">Loading materials...</p>
             ) : materials.length === 0 ? (
-              <p className="text-sm text-slate-400">No materials found.</p>
+              <p className="text-sm text-slate-400">No materials found for the selected filters.</p>
             ) : (
               <div className="space-y-3">
                 {materials.map((material) => (
@@ -392,16 +499,14 @@ export default function MaterialsPage() {
                   >
                     <div className="mb-1 flex items-start justify-between gap-2">
                       <h3 className="text-sm font-semibold">{material.title}</h3>
-                      <span className="text-xs text-slate-400">
-                        {formatDate(material.createdAt)}
-                      </span>
+                      <span className="text-xs text-slate-400">{formatDate(material.createdAt)}</span>
                     </div>
                     <p className="line-clamp-2 text-sm text-slate-300">
                       {material.description || "No description"}
                     </p>
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
-                      <span>Dept: {material.department?.name || material.departmentId || "-"}</span>
-                      <span>Course: {material.course?.name || material.courseId || "-"}</span>
+                      <span>Dept: {material.department?.name || "-"}</span>
+                      <span>Course: {material.course?.name || "-"}</span>
                       <span>Votes: {material.voteCount ?? 0}</span>
                       <span>{material.isBookmarked ? "Bookmarked" : "Not bookmarked"}</span>
                     </div>
@@ -419,6 +524,18 @@ export default function MaterialsPage() {
                     ) : null}
                   </Link>
                 ))}
+                {nextCursor ? (
+                  <div className="flex justify-center pt-2">
+                    <button
+                      type="button"
+                      onClick={() => void loadMoreMaterials()}
+                      disabled={loadingMore}
+                      className="rounded-xl border border-[rgba(127,183,220,0.16)] px-4 py-2 text-sm text-slate-300 hover:bg-[rgba(56,128,176,0.12)] disabled:opacity-60"
+                    >
+                      {loadingMore ? "Loading..." : "More materials"}
+                    </button>
+                  </div>
+                ) : null}
               </div>
             )}
           </section>

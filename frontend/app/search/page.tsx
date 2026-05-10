@@ -17,6 +17,7 @@ type SearchTab = "all" | "materials" | "users" | "groups";
 type SearchEntityType = "material" | "user" | "group";
 
 export default function SearchPage() {
+  const PAGE_SIZE = 15;
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState<SearchTab>("all");
@@ -24,6 +25,7 @@ export default function SearchPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const tabs: Array<{ key: SearchTab; label: string }> = useMemo(
     () => [
@@ -208,6 +210,7 @@ export default function SearchPage() {
               : await searchAll(trimmed);
 
       setResults(normalizeSearchResponse(response, activeTab));
+      setVisibleCount(PAGE_SIZE);
     } catch (err) {
       if (isAuthError(err)) {
         clearAccessToken();
@@ -221,6 +224,11 @@ export default function SearchPage() {
     }
   }
 
+  const visibleResults = useMemo(
+    () => results.slice(0, visibleCount),
+    [results, visibleCount]
+  );
+
   function toMaterialHref(result: SearchResult): string | null {
     if (result.entityType !== "material") return null;
     return `/materials/${result.entityId}`;
@@ -231,8 +239,13 @@ export default function SearchPage() {
     return `/users/${result.entityId}`;
   }
 
+  function toGroupHref(result: SearchResult): string | null {
+    if (result.entityType !== "group") return null;
+    return `/groups/${result.entityId}`;
+  }
+
   return (
-    <main className="search-scene relative min-h-screen overflow-hidden text-slate-100">
+    <main className="search-scene relative min-h-screen overflow-x-hidden text-slate-100">
       <div className="search-pattern pointer-events-none absolute inset-0" />
       <div className="relative mx-auto max-w-6xl px-4 py-4">
         <header className="mb-4 flex items-center justify-between rounded-2xl border border-[rgba(127,183,220,0.16)] bg-[rgba(16,33,49,0.9)] px-4 py-3 shadow-[0_20px_80px_rgba(8,19,29,0.35)] backdrop-blur">
@@ -245,6 +258,9 @@ export default function SearchPage() {
             </Link>
             <Link href="/search" className="rounded-full bg-[#3880b0] px-3 py-1.5 font-medium text-[#08131d]">
               Search
+            </Link>
+            <Link href="/groups" className="rounded-full px-3 py-1.5 hover:bg-[rgba(56,128,176,0.12)]">
+              Groups
             </Link>
           </div>
           <div className="flex items-center gap-2">
@@ -324,9 +340,10 @@ export default function SearchPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {results.map((result) => {
+              {visibleResults.map((result) => {
                 const materialHref = toMaterialHref(result);
                 const userHref = toUserHref(result);
+                const groupHref = toGroupHref(result);
                 const content = (
                   <>
                     <div className="mb-2 flex items-center justify-between gap-2">
@@ -347,11 +364,11 @@ export default function SearchPage() {
                   </>
                 );
 
-                if (materialHref || userHref) {
+                if (materialHref || userHref || groupHref) {
                   return (
                     <Link
                       key={`${result.entityType}-${result.entityId}`}
-                      href={materialHref ?? userHref ?? "#"}
+                      href={materialHref ?? userHref ?? groupHref ?? "#"}
                       className="block rounded-2xl border border-[rgba(127,183,220,0.14)] bg-[rgba(8,19,29,0.76)] p-4 hover:border-[rgba(127,183,220,0.3)]"
                     >
                       {content}
@@ -368,6 +385,17 @@ export default function SearchPage() {
                   </div>
                 );
               })}
+              {results.length > visibleResults.length ? (
+                <div className="flex justify-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
+                    className="rounded-full border border-[rgba(127,183,220,0.18)] px-4 py-2 text-sm text-slate-300 hover:bg-[rgba(56,128,176,0.12)]"
+                  >
+                    More results
+                  </button>
+                </div>
+              ) : null}
             </div>
           )}
         </section>

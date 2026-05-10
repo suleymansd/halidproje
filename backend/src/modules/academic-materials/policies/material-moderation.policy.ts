@@ -3,7 +3,11 @@ import { ForbiddenException, Injectable } from '@nestjs/common';
 @Injectable()
 export class MaterialModerationPolicy {
   isModerator(roles: string[]): boolean {
-    return roles.includes('moderator') || roles.includes('school_admin');
+    return (
+      roles.includes('super_admin') ||
+      roles.includes('moderator') ||
+      roles.includes('school_admin')
+    );
   }
 
   assertCanRemoveMaterial(

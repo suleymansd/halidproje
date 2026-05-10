@@ -16,7 +16,11 @@ export class MaterialAccessPolicy {
       return;
     }
 
-    if (user.roles.includes('moderator') || user.roles.includes('school_admin')) {
+    if (
+      user.roles.includes('super_admin') ||
+      user.roles.includes('moderator') ||
+      user.roles.includes('school_admin')
+    ) {
       return;
     }
 

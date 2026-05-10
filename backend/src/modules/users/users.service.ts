@@ -56,7 +56,7 @@ export class UsersService {
 
   async updateMe(userId: string, schoolId: string, dto: UpdateUserDto) {
     const normalizedDepartmentId = dto.department_id ?? dto.departmentId;
-    const normalizedUsername = dto.username;
+    const normalizedUsername = dto.username?.trim().toLowerCase();
 
     if (normalizedDepartmentId) {
       const department = await this.usersRepository.findDepartmentByIdAndSchool(
@@ -76,7 +76,10 @@ export class UsersService {
       }
     }
 
-    await this.usersRepository.updateUser(userId, schoolId, dto);
+    await this.usersRepository.updateUser(userId, schoolId, {
+      ...dto,
+      username: normalizedUsername,
+    });
     this.logger.log(`User updated onboarding/profile: ${userId}`, UsersService.name);
     return this.getCurrentProfile(userId, schoolId);
   }

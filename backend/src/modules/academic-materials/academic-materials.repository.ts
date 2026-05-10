@@ -313,38 +313,61 @@ export class AcademicMaterialsRepository {
     dto: UpdateMaterialDto,
     userId: string,
   ): Promise<any> {
-    const result = await this.pool.query(
-      `
-        UPDATE academic_materials
-        SET
-          title = COALESCE($3, title),
-          description = COALESCE($4, description),
-          course_id = COALESCE($5, course_id),
-          department_id = COALESCE($6, department_id),
-          updated_at = now()
-        WHERE school_id = $1
-          AND id = $2
-          AND deleted_at IS NULL
-        RETURNING id
-      `,
-      [
-        schoolId,
-        materialId,
-        dto.title?.trim() ?? null,
-        dto.description?.trim() ?? null,
-        dto.courseId ?? null,
-        dto.departmentId ?? null,
-      ],
-    );
+    const client = await this.pool.connect();
 
-    return result.rowCount ? this.findMaterialById(schoolId, materialId, userId) : null;
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        `
+          UPDATE academic_materials
+          SET
+            title = COALESCE($3, title),
+            description = COALESCE($4, description),
+            course_id = COALESCE($5, course_id),
+            department_id = COALESCE($6, department_id),
+            updated_at = now()
+          WHERE school_id = $1
+            AND id = $2
+            AND deleted_at IS NULL
+          RETURNING id
+        `,
+        [
+          schoolId,
+          materialId,
+          dto.title?.trim() ?? null,
+          dto.description?.trim() ?? null,
+          dto.courseId ?? null,
+          dto.departmentId ?? null,
+        ],
+      );
+
+      if (!result.rowCount) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+
+      if (dto.tags !== undefined) {
+        await client.query(
+          `
+            DELETE FROM academic_material_tag_map
+            WHERE material_id = $1
+          `,
+          [materialId],
+        );
+        await this.syncTags(client, schoolId, materialId, dto.tags);
+      }
+
+      await client.query('COMMIT');
+      return this.findMaterialById(schoolId, materialId, userId);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
-  async softDeleteMaterial(
-    schoolId: string,
-    materialId: string,
-    actorUserId: string,
-  ): Promise<any> {
+  async softDeleteMaterial(schoolId: string, materialId: string): Promise<void> {
     await this.pool.query(
       `
         UPDATE academic_materials
@@ -355,8 +378,6 @@ export class AcademicMaterialsRepository {
       `,
       [schoolId, materialId],
     );
-
-    return this.findMaterialById(schoolId, materialId, actorUserId);
   }
 
   async findMaterialComments(
@@ -670,7 +691,7 @@ export class AcademicMaterialsRepository {
         FROM courses
         WHERE id = $1
           AND school_id = $2
-          AND deleted_at IS NULL
+          AND is_active = true
         LIMIT 1
       `,
       [courseId, schoolId],

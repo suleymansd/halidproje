@@ -145,7 +145,10 @@ export class AcademicMaterialsService {
     return this.academicMaterialsRepository.updateMaterial(
       user.schoolId,
       materialId,
-      dto,
+      {
+        ...dto,
+        tags: dto.tags ? this.normalizeTags(dto.tags) : undefined,
+      },
       user.id,
     );
   }
@@ -154,11 +157,9 @@ export class AcademicMaterialsService {
     const material = await this.getMaterialById(user, materialId);
     this.materialModerationPolicy.assertCanRemoveMaterial(user, material.uploaderId);
 
-    return this.academicMaterialsRepository.softDeleteMaterial(
-      user.schoolId,
-      materialId,
-      user.id,
-    );
+    await this.academicMaterialsRepository.softDeleteMaterial(user.schoolId, materialId);
+
+    return { removed: true, id: materialId };
   }
 
   async listMaterialComments(

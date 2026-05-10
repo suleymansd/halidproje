@@ -16,6 +16,10 @@ export class CompleteOnboardingDto {
   full_name?: string;
 
   @IsOptional()
+  @IsString()
+  bio?: string;
+
+  @IsOptional()
   @IsUUID()
   school_id?: string;
 
@@ -24,6 +28,6 @@ export class CompleteOnboardingDto {
 
   @IsOptional()
   @IsString()
-  @Matches(/^[a-zA-Z0-9._-]{3,30}$/)
+  @Matches(/^[a-zA-Z0-9._]{3,30}$/)
   username?: string;
 }

@@ -1,1 +1,8 @@
-{}
+{
+  "/page": "app/page.js",
+  "/materials/page": "app/materials/page.js",
+  "/chat/page": "app/chat/page.js",
+  "/courses/page": "app/courses/page.js",
+  "/search/page": "app/search/page.js",
+  "/groups/page": "app/groups/page.js"
+}

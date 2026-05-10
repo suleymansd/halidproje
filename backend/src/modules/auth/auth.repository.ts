@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 
 import { DATABASE_POOL } from '../../infrastructure/database/database.constants';
 import { AuthUser } from './interfaces/auth-user.interface';
@@ -13,6 +13,11 @@ interface CreateUserInput {
   username: string | null;
   onboardingCompleted: boolean;
   role: string;
+}
+
+interface SchoolRecord {
+  id: string;
+  name: string;
 }
 
 interface CreateSessionInput {
@@ -135,6 +140,61 @@ export class AuthRepository {
     return this.mapAuthUser(result.rows[0]);
   }
 
+  async findDefaultSchool(): Promise<SchoolRecord | null> {
+    const configuredSlug = process.env.SEED_SCHOOL_SLUG ?? 'isu-universitesi';
+    const configuredName = process.env.SEED_SCHOOL_NAME ?? 'İsü Üniversitesi';
+
+    const bySlug = await this.pool.query(
+      `
+        SELECT id, name
+        FROM schools
+        WHERE slug = $1
+        LIMIT 1
+      `,
+      [configuredSlug],
+    );
+
+    if (bySlug.rowCount) {
+      return {
+        id: bySlug.rows[0].id,
+        name: bySlug.rows[0].name,
+      };
+    }
+
+    const byName = await this.pool.query(
+      `
+        SELECT id, name
+        FROM schools
+        WHERE name = $1
+        LIMIT 1
+      `,
+      [configuredName],
+    );
+
+    if (byName.rowCount) {
+      return {
+        id: byName.rows[0].id,
+        name: byName.rows[0].name,
+      };
+    }
+
+    const firstSchool = await this.pool.query(
+      `
+        SELECT id, name
+        FROM schools
+        ORDER BY created_at ASC, id ASC
+        LIMIT 1
+      `,
+    );
+
+    return firstSchool.rowCount
+      ? {
+          id: firstSchool.rows[0].id,
+          name: firstSchool.rows[0].name,
+        }
+      : null;
+  }
+
   async findSchoolById(schoolId: string): Promise<{ id: string; name: string } | null> {
     const result = await this.pool.query(
       `SELECT id, name FROM schools WHERE id = $1 LIMIT 1`,
@@ -235,6 +295,86 @@ export class AuthRepository {
         WHERE id = $1
       `,
       [sessionId],
+    );
+  }
+
+  async addUserToDefaultRooms(
+    userId: string,
+    schoolId: string,
+    departmentId: string,
+  ): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const generalRoom = await client.query(
+        `
+          SELECT id
+          FROM chat_rooms
+          WHERE school_id = $1
+            AND room_type = 'general'
+            AND is_active = true
+            AND is_archived = false
+          LIMIT 1
+        `,
+        [schoolId],
+      );
+
+      if (generalRoom.rowCount) {
+        await this.upsertRoomMember(client, schoolId, generalRoom.rows[0].id, userId);
+      }
+
+      const departmentRoom = await client.query(
+        `
+          SELECT id
+          FROM chat_rooms
+          WHERE school_id = $1
+            AND room_type = 'department'
+            AND department_id = $2
+            AND is_active = true
+            AND is_archived = false
+          LIMIT 1
+        `,
+        [schoolId, departmentId],
+      );
+
+      if (departmentRoom.rowCount) {
+        await this.upsertRoomMember(client, schoolId, departmentRoom.rows[0].id, userId);
+      }
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  private async upsertRoomMember(
+    client: Pool | PoolClient,
+    schoolId: string,
+    roomId: string,
+    userId: string,
+  ): Promise<void> {
+    await client.query(
+      `
+        INSERT INTO chat_room_members (
+          school_id,
+          room_id,
+          user_id,
+          room_role,
+          is_active,
+          left_at
+        )
+        VALUES ($1, $2, $3, 'member', true, NULL)
+        ON CONFLICT (room_id, user_id)
+        DO UPDATE SET
+          is_active = true,
+          left_at = NULL,
+          updated_at = now()
+      `,
+      [schoolId, roomId, userId],
     );
   }
 

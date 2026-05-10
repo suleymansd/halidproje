@@ -2,6 +2,7 @@ import {
   ConflictException,
   Injectable,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
@@ -30,13 +31,15 @@ export class AuthService {
   async register(dto: RegisterDto) {
     const input = this.normalizeRegistration(dto);
     const email = input.email.trim().toLowerCase();
+    this.assertUniversityEmail(email);
     const existingUser = await this.authRepository.findUserByEmail(email);
 
     if (existingUser) {
       throw new ConflictException('Email is already registered');
     }
 
-    await this.ensureSchoolAndDepartment(input.schoolId, input.departmentId);
+    const schoolId = await this.resolveRegistrationSchoolId(input.schoolId);
+    await this.ensureSchoolAndDepartment(schoolId, input.departmentId);
 
     if (input.username) {
       const usernameTaken = await this.authRepository.findUserByUsername(input.username);
@@ -50,12 +53,17 @@ export class AuthService {
       email,
       fullName: input.fullName,
       passwordHash,
-      schoolId: input.schoolId,
+      schoolId,
       departmentId: input.departmentId,
       username: input.username,
-      onboardingCompleted: true,
+      onboardingCompleted: false,
       role: 'student',
     });
+    await this.authRepository.addUserToDefaultRooms(
+      user.id,
+      schoolId,
+      input.departmentId,
+    );
 
     this.logger.log(`User registered: ${user.id}`, AuthService.name);
 
@@ -137,7 +145,7 @@ export class AuthService {
       password: dto.password,
       schoolId: dto.school_id ?? dto.schoolId ?? '',
       departmentId: dto.department_id ?? dto.departmentId ?? '',
-      username: dto.username ?? null,
+      username: dto.username?.trim().toLowerCase() ?? null,
     };
   }
 
@@ -222,6 +230,25 @@ export class AuthService {
 
     if (!department) {
       throw new UnauthorizedException('Department does not belong to the selected school');
+    }
+  }
+
+  private async resolveRegistrationSchoolId(schoolId?: string): Promise<string> {
+    if (schoolId?.trim()) {
+      return schoolId.trim();
+    }
+
+    const defaultSchool = await this.authRepository.findDefaultSchool();
+    if (!defaultSchool) {
+      throw new BadRequestException('Default school is not configured');
+    }
+
+    return defaultSchool.id;
+  }
+
+  private assertUniversityEmail(email: string): void {
+    if (!email.endsWith('@isu.edu.tr')) {
+      throw new BadRequestException('Email must use the @isu.edu.tr domain');
     }
   }
 

@@ -24,6 +24,7 @@ import { ChatEventsPublisher } from './gateways/chat-events.publisher';
 import { RoomBroadcastService } from './gateways/room-broadcast.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationTypes } from '../notifications/constants/notification-types.constant';
+import { SocialRepository } from '../social/social.repository';
 
 @Injectable()
 export class MessagingService {
@@ -34,6 +35,7 @@ export class MessagingService {
     private readonly chatEventsPublisher: ChatEventsPublisher,
     private readonly roomBroadcastService: RoomBroadcastService,
     private readonly notificationsService: NotificationsService,
+    private readonly socialRepository: SocialRepository,
   ) {}
 
   async listUserRooms(user: ChatUserContext, query: ListUserRoomsDto) {
@@ -84,6 +86,15 @@ export class MessagingService {
       throw new NotFoundException('Target user not found in this school');
     }
 
+    const block = await this.socialRepository.isBlockedBetweenUsers(
+      currentUser.schoolId,
+      currentUser.userId,
+      dto.targetUserId,
+    );
+    if (block) {
+      throw new ForbiddenException('Direct messages are disabled between blocked users');
+    }
+
     const existingRoom = await this.messagingRepository.findPrivateRoomBetweenUsers(
       currentUser.schoolId,
       currentUser.userId,
@@ -120,6 +131,7 @@ export class MessagingService {
     const currentUser = this.normalizeUser(user);
     const room = await this.getAccessibleRoom(currentUser, roomId);
     await this.ensureCanParticipate(currentUser, roomId);
+    await this.assertNoBlockForPrivateRoom(currentUser, room);
 
     if (dto.attachmentIds?.length) {
       throw new BadRequestException('Attachment sending is not available yet');
@@ -505,6 +517,36 @@ export class MessagingService {
         sender.schoolId,
         payload,
         { userId: recipientId },
+      );
+    }
+  }
+
+  private async assertNoBlockForPrivateRoom(
+    user: ChatUserContext & { userId: string },
+    room: { id: string; roomType?: string },
+  ) {
+    if (room.roomType !== ChatRoomTypes.Private) {
+      return;
+    }
+
+    const memberIds = await this.messagingRepository.findRoomMemberUserIds(
+      user.schoolId,
+      room.id,
+    );
+    const otherUserId = memberIds.find((memberId) => memberId !== user.userId);
+
+    if (!otherUserId) {
+      return;
+    }
+
+    const block = await this.socialRepository.isBlockedBetweenUsers(
+      user.schoolId,
+      user.userId,
+      otherUserId,
+    );
+    if (block) {
+      throw new ForbiddenException(
+        'Direct messages are disabled between blocked users',
       );
     }
   }

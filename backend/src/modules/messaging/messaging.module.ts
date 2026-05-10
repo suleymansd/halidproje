@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { RedisModule } from '../../infrastructure/redis/redis.module';
 import { SharedModule } from '../../shared/shared.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { SocialModule } from '../social/social.module';
 import { ChatEventsPublisher } from './gateways/chat-events.publisher';
 import { ChatEventsSubscriber } from './gateways/chat-events.subscriber';
 import { ChatGateway } from './gateways/chat.gateway';
@@ -18,7 +19,7 @@ import { ChatAccessPolicy } from './policies/chat-access.policy';
 import { ChatRoomTypePolicy } from './policies/chat-room-type.policy';
 
 @Module({
-  imports: [SharedModule, RedisModule, NotificationsModule, JwtModule.register({})],
+  imports: [SharedModule, RedisModule, NotificationsModule, SocialModule, JwtModule.register({})],
   controllers: [MessagingController],
   providers: [
     MessagingService,

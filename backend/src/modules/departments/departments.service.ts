@@ -8,11 +8,11 @@ export class DepartmentsService {
     private readonly departmentsRepository: DepartmentsRepository,
   ) {}
 
-  async findAll(): Promise<void> {
-    void this.departmentsRepository;
+  async findAll(): Promise<unknown[]> {
+    return this.departmentsRepository.findAll();
   }
 
-  async findById(_departmentId: string): Promise<void> {
-    void this.departmentsRepository;
+  async findById(departmentId: string): Promise<unknown> {
+    return this.departmentsRepository.findById(departmentId);
   }
 }

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { CoursesRepository } from './courses.repository';
 
@@ -6,11 +6,16 @@ import { CoursesRepository } from './courses.repository';
 export class CoursesService {
   constructor(private readonly coursesRepository: CoursesRepository) {}
 
-  async findAll(): Promise<void> {
-    void this.coursesRepository;
+  async findAll(): Promise<unknown[]> {
+    return this.coursesRepository.findAll();
   }
 
-  async findById(_courseId: string): Promise<void> {
-    void this.coursesRepository;
+  async findById(courseId: string): Promise<unknown> {
+    const course = await this.coursesRepository.findById(courseId);
+    if (!course) {
+      throw new NotFoundException('Course not found');
+    }
+
+    return course;
   }
 }

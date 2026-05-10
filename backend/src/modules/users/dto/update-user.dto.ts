@@ -22,6 +22,6 @@ export class UpdateUserDto {
 
   @IsOptional()
   @IsString()
-  @Matches(/^[a-zA-Z0-9._-]{3,30}$/)
+  @Matches(/^[a-zA-Z0-9._]{3,30}$/)
   username?: string;
 }
