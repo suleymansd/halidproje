@@ -29,7 +29,7 @@ WORKDIR /app
 COPY scripts ./scripts
 
 RUN chmod +x ./scripts/start.sh ./scripts/wait-for-services.sh \
-    && pip install --no-cache-dir -r ./backend/requirements.txt
+    && pip install --no-cache-dir --break-system-packages -r ./backend/requirements.txt
 
 ENV NODE_ENV=production
 ENV PORT=3000
