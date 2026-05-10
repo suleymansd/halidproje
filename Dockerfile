@@ -25,11 +25,12 @@ RUN npm ci --omit=dev
 
 COPY --from=build /app/backend/dist ./dist
 COPY backend ./backend
+COPY backend/requirements.txt ./backend/requirements.txt
 WORKDIR /app
 COPY scripts ./scripts
 
 RUN chmod +x ./scripts/start.sh ./scripts/wait-for-services.sh \
-    && pip install --no-cache-dir --break-system-packages -r ./backend/requirements.txt
+    && pip install --no-cache-dir --break-system-packages -r /app/backend/requirements.txt
 
 ENV NODE_ENV=production
 ENV PORT=3000
