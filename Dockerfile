@@ -24,8 +24,7 @@ WORKDIR /app/backend
 RUN npm ci --omit=dev
 
 COPY --from=build /app/backend/dist ./dist
-COPY backend ./backend
-COPY backend/requirements.txt ./backend/requirements.txt
+COPY backend /app/backend
 WORKDIR /app
 COPY scripts ./scripts
 
